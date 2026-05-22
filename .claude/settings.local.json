@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(where node *)",
+      "WebFetch(domain:github.com)",
+      "Bash(git clone *)",
+      "Bash(where msbuild *)",
+      "Bash(where cl *)",
+      "Bash(where devenv *)",
+      "Bash(reg query *)",
+      "Bash(mkdir -p \"D:/UE5_Projects/\")",
+      "Bash(mv \"D:/AllAboutUE/UE5_Projects/Horror Mechanics 4.26 Unreal Engine/Horror Mechanics/HorrorMechanics/HorrorMechanics\" \"D:/UE5_Projects/HorrorMechanics\")",
+      "Bash(cp -r \"D:/AllAboutUE/UE5_Projects/Horror Mechanics 4.26 Unreal Engine/Horror Mechanics/HorrorMechanics/HorrorMechanics\" \"D:/UE5_Projects/HorrorMechanics\")",
+      "Bash(rsync -a --exclude='.vs' --exclude='Binaries' --exclude='Intermediate' --exclude='Saved' --exclude='DerivedDataCache' \"D:/AllAboutUE/UE5_Projects/Horror Mechanics 4.26 Unreal Engine/Horror Mechanics/HorrorMechanics/HorrorMechanics/\" \"D:/UE5_Projects/HorrorMechanics/\")",
+      "Bash(mkdir -p \"D:/UE5_Projects/HorrorMechanics\")",
+      "Bash(cp -r 'D:/AllAboutUE/UE5_Projects/Horror Mechanics 4.26 Unreal Engine/Horror Mechanics/HorrorMechanics/HorrorMechanics/__TRACKED_VAR__' D:/UE5_Projects/HorrorMechanics/)",
+      "Bash(cp \"D:/AllAboutUE/UE5_Projects/Horror Mechanics 4.26 Unreal Engine/Horror Mechanics/HorrorMechanics/HorrorMechanics/\"*.uproject \"D:/UE5_Projects/HorrorMechanics/\")",
+      "Bash(cp \"D:/AllAboutUE/UE5_Projects/Horror Mechanics 4.26 Unreal Engine/Horror Mechanics/HorrorMechanics/HorrorMechanics/\"*.json \"D:/UE5_Projects/HorrorMechanics/\")",
+      "Bash(cp -r \"D:/AllAboutUE/UE5_Projects/Horror Mechanics 4.26 Unreal Engine/Horror Mechanics/HorrorMechanics/HorrorMechanics/.claude\" \"D:/UE5_Projects/HorrorMechanics/\")",
+      "Read(//d/UE5_Projects/HorrorMechanics/.claude/**)",
+      "Read(//d/UE5_Projects/HorrorMechanics/**)",
+      "Bash(rm -rf \"D:/UE5_Projects/HorrorMechanics/Binaries\" \"D:/UE5_Projects/HorrorMechanics/Intermediate\" \"D:/UE5_Projects/HorrorMechanics/Saved\" \"D:/UE5_Projects/HorrorMechanics/DerivedDataCache\" \"D:/UE5_Projects/HorrorMechanics/.vs\")",
+      "Bash(powershell *)",
+      "Bash(sed -i '' '1937,2155d' \"D:\\\\AllAboutUE\\\\UE5_Projects\\\\TheRemainingSound\\\\Plugins\\\\McpAutomationBridge\\\\Source\\\\McpAutomationBridge\\\\Private\\\\McpAutomationBridge_LevelHandlers.cpp\")",
+      "Bash(sed -i '1937,2155d' \"D:\\\\AllAboutUE\\\\UE5_Projects\\\\TheRemainingSound\\\\Plugins\\\\McpAutomationBridge\\\\Source\\\\McpAutomationBridge\\\\Private\\\\McpAutomationBridge_LevelHandlers.cpp\")",
+      "Bash(curl -s http://localhost:3000/mcp)",
+      "Bash(tasklist)",
+      "Bash(curl -s http://127.0.0.1:8090/)",
+      "Bash(curl -s http://127.0.0.1:8091/)",
+      "Bash(curl -s -H \"Accept: text/event-stream\" http://localhost:3000/mcp)",
+      "Bash(curl -s -X POST -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"jsonrpc\":\"2.0\",\"id\":\"test\",\"method\":\"tools/list\",\"params\":{}}' http://localhost:3000/mcp)",
+      "Bash(curl *)",
+      "Bash(sed 's/^data: //')",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
