@@ -1,36 +1,28 @@
-# Visual Studio
+# Unreal Engine generated files
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Visual Studio / Rider / IDE
 .vs/
+.idea/
 *.suo
 *.user
 *.userosscache
-*.sln.docstates
 *.userprefs
-
-# Unreal Engine
-Binaries/
-Intermediate/
-DerivedDataCache/
-Saved/
-Build/
-
-# Content blobs
-*.uasset
-*.umap
-*.uexp
-*.ubulk
-*.ufont
-*.upop
-
-# IDE
-.idea/
+*.sln.docstates
 *.swp
 *.swo
 *~
 
-# OS
+# Build outputs and packaging artifacts
+build/
+packages/
+
+# OS noise
 Thumbs.db
 .DS_Store
 
-# Packaging
-build/
-packages/
+# Local agent/editor state
+.claude/
