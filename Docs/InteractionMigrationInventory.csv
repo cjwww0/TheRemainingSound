@@ -1,0 +1,18 @@
+Category,AssetOrClass,Status,TargetRoute,PlacementStrategy,Validation
+CoreFramework,BP_HorrorGameMode,CodeReady,MainRoute,Keep configured as map GameMode,PIE spawns player and loads checkpoint state
+CoreFramework,CH_PlayerCharacter,CodeReady,MainRoute,Move PlayerStart to final scene,Walk-only interact ray and HUD work
+Documents,BP_Document,ManualPlacement,MainRoute/Optional,Place story documents in final scene,Document opens closes and dizziness timer works
+Inventory,BP_InventoryItem/BP_InventoryKey/BP_SimpleCollectible,ManualPlacement,MainRoute/Optional,Use template pickup actors with configured ItemData,Item enters inventory and can be consumed
+Doors,BP_DoorAbstractClass/BP_AnimatedDoor/BP_BidirectionalDoor,ManualPlacement,MainRoute/Optional,Align door actors or proxy movable meshes to final art,Open close lock key and checkpoint state work
+Furniture,BP_Furniture,ManualPlacement,Optional/DebugOnly,Use only where final art has movable drawer or cabinet,Drawer/cabinet motion and lock state work
+PuzzleBase,BP_PuzzleActor,CodeReady,MainRoute,Use as base for puzzle actors,Puzzle mode UI input reset finalize all work
+Keypad,BP_Keypad_PuzzleActor,ManualPlacement,MainRouteCandidate,Place on final wall or door,Password input and success event work
+CombinationLock,BP_CombinationLock_PuzzleActor,ManualPlacement,Optional/DebugOnly,Place in debug area unless story needs it,Input rings and unlock event work
+Workbench,BP_WorkbenchPanel_PuzzleActor,ManualPlacement,MainRoute,Place at workshop workbench,Part filter sequential unlock warm light and finalize work
+WorkbenchParts,BP_WorkbenchPickup_01..05,ManualPlacement,MainRoute,Place parts sequentially in route,Only current required part appears in choose UI
+Examinables,BP_AbstractExaminableObject/BP_ExaminableObject,ManualPlacement,MainRoute/Optional,Use for inspectable props,Inspect return collect flow works
+Wieldables,BP_WieldableActor/BP_Flashlight/BP_Weapon,ManualPlacement,Optional/DebugOnly,Keep in debug first then promote selectively,Equip toggle attack/unwield does not break UI
+Lighting,BP_Switch/BP_EmissiveMeshLight/BP_WorkshopLightFaultController,ManualPlacement,MainRoute,Proxy controller drives final scene lights,Light state and sound state persist
+SaveSystem,BP_CheckpointTrigger/BP_SaveMachine,ManualPlacement,MainRoute,Place at route milestones,Save/load restores actor inventory player data
+P10,BP_PanelPickupShockController,ManualPlacement,MainRoute,Place at panel pickup shock beat,Flash/camera/audio work; Chaos cup remains deferred
+P11,BP_NurseEncounter_01,ManualPlacement,MainRoute,Place in final doorway sightline,Appear duration proximity feedback disappear work
