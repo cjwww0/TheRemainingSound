@@ -4,7 +4,10 @@
 #include "Components/LightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
+#include "Puzzle/RemainWorkbenchPartIdProvider.h"
+#include "Puzzle/RemainWorkbenchPickupLibrary.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "UObject/UnrealType.h"
@@ -21,6 +24,12 @@ void URemainWorkbenchPuzzleComponent::BeginPlay()
 	EnsureStateArrays();
 	ConfigureInteractionCollision();
 	RefreshSlotVisuals();
+	ApplySequentialPickupVisibility();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &URemainWorkbenchPuzzleComponent::ApplySequentialPickupVisibility));
+	}
 }
 
 namespace
@@ -96,6 +105,132 @@ namespace
 		}
 	}
 
+	static void CollectWorkbenchPartIds(const UObject* Item, TArray<FName>& OutPartIds, TSet<const UObject*>& VisitedObjects, TSet<const UClass*>& VisitedClasses)
+	{
+		if (!IsValid(Item) || VisitedObjects.Contains(Item))
+		{
+			return;
+		}
+
+		VisitedObjects.Add(Item);
+
+		if (const UClass* ItemClass = Item->GetClass())
+		{
+			if (ItemClass->ImplementsInterface(URemainWorkbenchPartIdProvider::StaticClass()))
+			{
+				const FName PartId = IRemainWorkbenchPartIdProvider::Execute_GetWorkbenchPartId(const_cast<UObject*>(Item));
+				if (!PartId.IsNone())
+				{
+					OutPartIds.AddUnique(PartId);
+				}
+			}
+
+			if (const FNameProperty* PartIdProperty = FindFProperty<FNameProperty>(ItemClass, TEXT("PartId")))
+			{
+				const FName PartId = PartIdProperty->GetPropertyValue_InContainer(Item);
+				if (!PartId.IsNone())
+				{
+					OutPartIds.AddUnique(PartId);
+				}
+			}
+
+			if (!VisitedClasses.Contains(ItemClass))
+			{
+				VisitedClasses.Add(ItemClass);
+				if (const UObject* DefaultObject = ItemClass->GetDefaultObject())
+				{
+					if (ItemClass->ImplementsInterface(URemainWorkbenchPartIdProvider::StaticClass()))
+					{
+						const FName PartId = IRemainWorkbenchPartIdProvider::Execute_GetWorkbenchPartId(const_cast<UObject*>(DefaultObject));
+						if (!PartId.IsNone())
+						{
+							OutPartIds.AddUnique(PartId);
+						}
+					}
+
+					if (const FNameProperty* DefaultPartIdProperty = FindFProperty<FNameProperty>(ItemClass, TEXT("PartId")))
+					{
+						const FName PartId = DefaultPartIdProperty->GetPropertyValue_InContainer(DefaultObject);
+						if (!PartId.IsNone())
+						{
+							OutPartIds.AddUnique(PartId);
+						}
+					}
+				}
+			}
+		}
+
+		static const FName ObjectPropertyCandidates[] =
+		{
+			TEXT("ItemInstanceRef"),
+			TEXT("InventoryItemRef"),
+			TEXT("ExaminableItem")
+		};
+
+		for (const FName PropertyName : ObjectPropertyCandidates)
+		{
+			if (const FObjectPropertyBase* ObjectProperty = FindFProperty<FObjectPropertyBase>(Item->GetClass(), PropertyName))
+			{
+				if (UObject* ReferencedObject = ObjectProperty->GetObjectPropertyValue_InContainer(Item))
+				{
+					CollectWorkbenchPartIds(ReferencedObject, OutPartIds, VisitedObjects, VisitedClasses);
+				}
+			}
+		}
+
+		static const FName ClassPropertyCandidates[] =
+		{
+			TEXT("InventoryItemClass"),
+			TEXT("ItemClass")
+		};
+
+		for (const FName PropertyName : ClassPropertyCandidates)
+		{
+			if (const FClassProperty* ClassProperty = FindFProperty<FClassProperty>(Item->GetClass(), PropertyName))
+			{
+				if (UObject* ReferencedClassObject = ClassProperty->GetObjectPropertyValue_InContainer(Item))
+				{
+					if (const UClass* ReferencedClass = Cast<UClass>(ReferencedClassObject))
+					{
+						if (!VisitedClasses.Contains(ReferencedClass))
+						{
+							VisitedClasses.Add(ReferencedClass);
+							if (const UObject* DefaultObject = ReferencedClass->GetDefaultObject())
+							{
+								if (ReferencedClass->ImplementsInterface(URemainWorkbenchPartIdProvider::StaticClass()))
+								{
+									const FName PartId = IRemainWorkbenchPartIdProvider::Execute_GetWorkbenchPartId(const_cast<UObject*>(DefaultObject));
+									if (!PartId.IsNone())
+									{
+										OutPartIds.AddUnique(PartId);
+									}
+								}
+
+								if (const FNameProperty* DefaultPartIdProperty = FindFProperty<FNameProperty>(ReferencedClass, TEXT("PartId")))
+								{
+									const FName PartId = DefaultPartIdProperty->GetPropertyValue_InContainer(DefaultObject);
+									if (!PartId.IsNone())
+									{
+										OutPartIds.AddUnique(PartId);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	static TArray<FName> ResolveWorkbenchPartIds(const UObject* Item)
+	{
+		TArray<FName> Result;
+		TSet<const UObject*> VisitedObjects;
+		TSet<const UClass*> VisitedClasses;
+		CollectWorkbenchPartIds(Item, Result, VisitedObjects, VisitedClasses);
+		return Result;
+	}
+
 	static TArray<UObject*> GetInventoryArrayObjects(UObject* Inventory)
 	{
 		TArray<UObject*> Result;
@@ -127,6 +262,42 @@ namespace
 
 		return Result;
 	}
+
+	static bool ReadActorArrayProperty(UObject* Object, const FName PropertyName, TArray<AActor*>& OutActors)
+	{
+		OutActors.Reset();
+		if (!IsValid(Object))
+		{
+			return false;
+		}
+
+		FArrayProperty* ArrayProperty = FindFProperty<FArrayProperty>(Object->GetClass(), PropertyName);
+		if (!ArrayProperty || !ArrayProperty->Inner)
+		{
+			return false;
+		}
+
+		const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner);
+		if (!ObjectProperty || !ObjectProperty->PropertyClass || !ObjectProperty->PropertyClass->IsChildOf(AActor::StaticClass()))
+		{
+			return false;
+		}
+
+		FScriptArrayHelper Helper(ArrayProperty, ArrayProperty->ContainerPtrToValuePtr<void>(Object));
+		for (int32 Index = 0; Index < Helper.Num(); ++Index)
+		{
+			if (AActor* Actor = Cast<AActor>(ObjectProperty->GetObjectPropertyValue(Helper.GetRawPtr(Index))))
+			{
+				OutActors.Add(Actor);
+			}
+			else
+			{
+				OutActors.Add(nullptr);
+			}
+		}
+
+		return OutActors.Num() > 0;
+	}
 }
 
 bool URemainWorkbenchPuzzleComponent::CanUseItem(UObject* Item) const
@@ -147,6 +318,17 @@ bool URemainWorkbenchPuzzleComponent::CanUseItem(UObject* Item) const
 	}
 
 	const FRemainWorkbenchSlotConfig& SlotConfig = SlotConfigs[CurrentUnlockedSlotIndex];
+	if (!SlotConfig.RequiredPartId.IsNone())
+	{
+		for (const FName PartId : ResolveWorkbenchPartIds(Item))
+		{
+			if (PartId == SlotConfig.RequiredPartId)
+			{
+				return true;
+			}
+		}
+	}
+
 	if (!SlotConfig.RequiredItemClass)
 	{
 		return false;
@@ -218,6 +400,7 @@ bool URemainWorkbenchPuzzleComponent::PlaceItem(UObject* Item, UObject* Inventor
 	}
 
 	OnSlotPlaced.Broadcast(SlotIndex, SlotConfig.SlotId, Item);
+	ApplySequentialPickupVisibility();
 
 	if (bWasFirstPlacement)
 	{
@@ -272,17 +455,30 @@ FText URemainWorkbenchPuzzleComponent::GetCurrentPromptText() const
 		FText::AsNumber(FMath::Max(SlotConfigs.Num(), 1)));
 }
 
+FName URemainWorkbenchPuzzleComponent::GetCurrentRequiredPartId() const
+{
+	if (!SlotConfigs.IsValidIndex(CurrentUnlockedSlotIndex))
+	{
+		return NAME_None;
+	}
+
+	return SlotConfigs[CurrentUnlockedSlotIndex].RequiredPartId;
+}
+
 FString URemainWorkbenchPuzzleComponent::BuildInventoryAcceptanceDebugString(UObject* Inventory) const
 {
 	TArray<FString> Parts;
 
 	const UClass* RequiredClass = nullptr;
+	FName RequiredPartId = NAME_None;
 	if (SlotConfigs.IsValidIndex(CurrentUnlockedSlotIndex))
 	{
 		RequiredClass = SlotConfigs[CurrentUnlockedSlotIndex].RequiredItemClass;
+		RequiredPartId = SlotConfigs[CurrentUnlockedSlotIndex].RequiredPartId;
 	}
 
 	Parts.Add(RequiredClass ? FString::Printf(TEXT("Required=%s"), *RequiredClass->GetName()) : TEXT("Required=None"));
+	Parts.Add(RequiredPartId.IsNone() ? TEXT("RequiredPartId=None") : FString::Printf(TEXT("RequiredPartId=%s"), *RequiredPartId.ToString()));
 	Parts.Add(FString::Printf(TEXT("SlotIndex=%d"), CurrentUnlockedSlotIndex));
 
 	const TArray<UObject*> Items = GetInventoryArrayObjects(Inventory);
@@ -299,8 +495,10 @@ FString URemainWorkbenchPuzzleComponent::BuildInventoryAcceptanceDebugString(UOb
 
 		TArray<const UClass*> CandidateClasses;
 		CollectWorkbenchItemClasses(Item, CandidateClasses);
+		const TArray<FName> CandidatePartIds = ResolveWorkbenchPartIds(Item);
 
 		TArray<FString> CandidateNames;
+		TArray<FString> CandidatePartIdNames;
 		bool bAccepted = false;
 		for (const UClass* CandidateClass : CandidateClasses)
 		{
@@ -314,12 +512,22 @@ FString URemainWorkbenchPuzzleComponent::BuildInventoryAcceptanceDebugString(UOb
 			}
 		}
 
+		for (const FName CandidatePartId : CandidatePartIds)
+		{
+			CandidatePartIdNames.Add(CandidatePartId.ToString());
+			if (!RequiredPartId.IsNone() && CandidatePartId == RequiredPartId)
+			{
+				bAccepted = true;
+			}
+		}
+
 		Parts.Add(FString::Printf(
-			TEXT("[%d] ItemClass=%s Accepted=%s Candidates=%s"),
+			TEXT("[%d] ItemClass=%s Accepted=%s Candidates=%s PartIds=%s"),
 			Index,
 			*Item->GetClass()->GetName(),
 			bAccepted ? TEXT("true") : TEXT("false"),
-			CandidateNames.Num() > 0 ? *FString::Join(CandidateNames, TEXT(",")) : TEXT("None")));
+			CandidateNames.Num() > 0 ? *FString::Join(CandidateNames, TEXT(",")) : TEXT("None"),
+			CandidatePartIdNames.Num() > 0 ? *FString::Join(CandidatePartIdNames, TEXT(",")) : TEXT("None")));
 	}
 
 	return FString::Join(Parts, TEXT(" | "));
@@ -349,6 +557,7 @@ void URemainWorkbenchPuzzleComponent::ApplyCheckpointState(const FRemainWorkbenc
 	bFaultLightsTriggered = State.bFaultLightsTriggered;
 
 	RefreshSlotVisuals();
+	ApplySequentialPickupVisibility();
 }
 
 void URemainWorkbenchPuzzleComponent::ResetWorkbenchState()
@@ -370,6 +579,7 @@ void URemainWorkbenchPuzzleComponent::ResetWorkbenchState()
 	}
 
 	RefreshSlotVisuals();
+	ApplySequentialPickupVisibility();
 }
 
 void URemainWorkbenchPuzzleComponent::RebuildInteractionTraceProxy()
@@ -489,6 +699,27 @@ void URemainWorkbenchPuzzleComponent::SetWarmLightActive(int32 SlotIndex, bool b
 	if (ULightComponent* WarmLight = ResolveWarmLightComponent(GetOwner(), SlotConfigs[SlotIndex]))
 	{
 		WarmLight->SetVisibility(bActive);
+	}
+}
+
+void URemainWorkbenchPuzzleComponent::ApplySequentialPickupVisibility()
+{
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+
+	TArray<AActor*> WorkbenchPickups;
+	if (!ReadActorArrayProperty(Owner, TEXT("WorkbenchPickups"), WorkbenchPickups))
+	{
+		return;
+	}
+
+	const int32 EnabledIndex = IsComplete() ? INDEX_NONE : CurrentUnlockedSlotIndex;
+	for (int32 Index = 0; Index < WorkbenchPickups.Num(); ++Index)
+	{
+		URemainWorkbenchPickupLibrary::SetWorkbenchPickupEnabled(WorkbenchPickups[Index], Index == EnabledIndex);
 	}
 }
 

@@ -20,6 +20,9 @@ struct FRemainWorkbenchSlotConfig
 	FName SlotId = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench")
+	FName RequiredPartId = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench")
 	TSubclassOf<UObject> RequiredItemClass = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench")
@@ -117,6 +120,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Remain|Workbench")
 	FText GetCurrentPromptText() const;
 
+	UFUNCTION(BlueprintPure, Category="Remain|Workbench")
+	FName GetCurrentRequiredPartId() const;
+
 	UFUNCTION(BlueprintCallable, Category="Remain|Workbench|Debug")
 	FString BuildInventoryAcceptanceDebugString(UObject* Inventory) const;
 
@@ -153,6 +159,7 @@ private:
 	void ConfigureInteractionCollision();
 	void RefreshSlotVisuals();
 	void SetWarmLightActive(int32 SlotIndex, bool bActive);
+	void ApplySequentialPickupVisibility();
 	bool RemoveInventoryItem(UObject* Inventory, UObject* Item) const;
 	bool BuildInteractionLocalBounds(FBox& OutLocalBounds) const;
 
