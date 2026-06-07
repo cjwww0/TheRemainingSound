@@ -125,3 +125,140 @@ Top detected template actor groups:
 | `BP_SaveMachine` | 1 |
 | `BP_Flashlight_ExaminableActor` | 1 |
 | `BP_Pistol_ExaminableActor` | 1 |
+
+## 2026-06-07 Re-Export Snapshot
+
+`Scripts/Unreal/export_interaction_actor_inventory.py` now scans:
+
+- `/Game/HorrorMechanics/Demo/Maps/DemoScene_01`
+- `/Game/HorrorMechanics/Demo/Maps/FinalHouse`
+- `/Game/Anemoia/MAIN/Maps/Demonstration`
+
+Current result:
+
+| Map | Total Actors | Likely Interaction Actors |
+| --- | ---: | ---: |
+| `/Game/HorrorMechanics/Demo/Maps/DemoScene_01` | 248 | 71 |
+| `/Game/HorrorMechanics/Demo/Maps/FinalHouse` | 863 | 0 |
+| `/Game/Anemoia/MAIN/Maps/Demonstration` | 2 | 0 |
+
+Interpretation: the imported scenes are currently art/layout layers only. Main-route gameplay actors still live in `DemoScene_01` at template coordinates. The next implementation pass should therefore be interaction placement and regression, not new feature development.
+
+## Immediate Main-Route Placement Pass
+
+Goal: make the existing stage 0/1 route playable in the new scene before adding stage 2 features.
+
+Work order:
+
+1. Set `PlayerStart` in the intended new-scene start room and verify `BP_HorrorGameMode`, `CH_PlayerCharacter`, `BP_HorrorHUD`, and input are still active.
+2. Create a `Gameplay_Logic` actor folder in `DemoScene_01` and move/place proxy gameplay actors there.
+3. Place core story interactables first: radio, letter, diary/document, old photo, panel pickup, P10 controller, P11 nurse, workbench, workbench parts, and `BP_WorkshopLightFaultController`.
+4. Place route gates after the story loop is stable: doors, keys, keypad/combination lock, checkpoint trigger, save machine.
+5. Preserve optional template systems outside the main route: furniture/drawers, weapon/equipment pickups, extra documents, and sample puzzle actors.
+6. After each placement group, run PIE and validate raycast prompt, `E` interaction, UI mode, inventory state, event trigger, and save/load state where applicable.
+
+Do not start P16-P23 until this pass can be played from spawn through P14/P15 in the new scene.
+
+## 2026-06-07 Main-Route Rough Placement
+
+Implemented with `Scripts/Unreal/place_main_route_in_finalhouse.py`.
+
+Output report:
+
+- `Saved/Migration/main_route_placement_report.csv`
+
+Result:
+
+| Status | Count | Meaning |
+| --- | ---: | --- |
+| `moved` | 19 | Main-route actors moved from template coordinates into the `FinalHouse` world-space area. |
+| `foldered` | 18 | Extra documents/items preserved in `Template_Reference` without changing their world position. |
+| `missing` | 4 | Optional/debug duplicate labels were not present; no main-route dependency. |
+
+Placed groups:
+
+- `Gameplay_Logic/00_Player`: `Player Start2`.
+- `Gameplay_Logic/01_Opening`: three opening documents and one opening inventory pickup candidate near the first-floor table area.
+- `Gameplay_Logic/02_P10_P11`: `BP_PanelPickupShockController` near the table/cup area and `BP_NurseEncounter_01` near the entrance sightline.
+- `Gameplay_Logic/03_Workbench`: `BP_WorkbenchPanel_PuzzleActor`, `BP_WorkshopLightFaultController`, and `BP_WorkbenchPickup_01..05`.
+- `Gameplay_Logic/04_Gates_Checkpoints`: one checkpoint, save machine, keypad candidate, combination lock candidate, and `HM_BidirectionalDoor6`.
+
+Important limitations:
+
+- `FinalHouse` is a `LevelInstance`; its internal light actors are not persistent-level actors. `BP_WorkshopLightFaultController` was moved near the workshop but its final controlled-light references still need viewport verification or persistent proxy lights.
+- This is a rough placement pass for regression. Visual composition, exact collision alignment, prompt wording, and route pacing still need manual viewport adjustment.
+- P10 Chaos cup break remains deferred. For this pass, validate screen flash, audio/light feedback, and P11 trigger chain instead.
+
+## 2026-06-07 Static Validation
+
+Implemented with `Scripts/Unreal/validate_main_route_placement.py`.
+
+Output report:
+
+- `Saved/Migration/main_route_static_validation.csv`
+
+Result:
+
+| Status | Count | Meaning |
+| --- | ---: | --- |
+| `PASS` | 50 | Main-route actor existence, folder, bounds, tag, and workbench slot checks passed. |
+| `WARN` | 1 | `BP_WorkshopLightFaultController.ControlledLights` is empty. Assign final-scene lights manually or use persistent proxy lights. |
+| `FAIL` | 0 | No blocking static validation failure. |
+| `MANUAL` | 8 | PIE-only checks that cannot be proven by static script. |
+
+Manual checks still required:
+
+- PIE spawn, camera, HUD, and player input.
+- Interact trace is not blocked by imported `FinalHouse` collision.
+- Opening documents can be opened and closed.
+- Document dizziness triggers while document UI is still open.
+- P10 screen flash/audio/light feedback after panel pickup.
+- P11 nurse appears in the intended sightline and proximity feedback works.
+- Workbench Choose UI opens only for the current required part.
+- Save/load restores workbench and event state.
+
+## 2026-06-07 PIE Regression Notes
+
+User-verified:
+
+- Spawn point was manually adjusted in the editor.
+- Crosshair prompt and `E` interaction work in the new scene.
+- Opening documents and in-document dizziness work.
+- P11 nurse encounter works.
+- Workbench first step works.
+- Picking up the first workbench part triggers the P10 screen flash.
+
+P10 cup diagnosis:
+
+- `BP_PanelPickupShockController` has moved to the new scene.
+- Its `BreakableCup` references still point to old-template actors:
+  - `SM_GlassBottle` at `1160.000,-210.000,1.909`
+  - `GC_SM_GlassBottle_Test` at `1160.000,-210.000,1.909`
+- This explains why the P10 trigger works but the cup is not visible in the new scene.
+- Use `Scripts/Unreal/inspect_p10_breakable_refs.py` to regenerate `Saved/Migration/p10_breakable_refs.csv`.
+
+P10 cup placement fix:
+
+- Implemented with `Scripts/Unreal/place_p10_cup_in_finalhouse.py`.
+- `SM_GlassBottle` and `GC_SM_GlassBottle_Test` moved to `8336.684,301.052,-158.000`.
+- Both actors are now in `Gameplay_Logic/02_P10_P11`.
+- Existing `BreakableCup` references were preserved.
+- Placement report: `Saved/Migration/p10_cup_placement_report.csv`.
+
+## 2026-06-07 P15 Proxy Fault Lights
+
+Implemented with `Scripts/Unreal/setup_p15_proxy_fault_lights.py`.
+
+Created persistent-level proxy lights:
+
+| Actor | Location | Normal Intensity | Fault Intensity |
+| --- | --- | ---: | ---: |
+| `P15_ProxyLivingRoomFaultLight` | `8335.000,285.000,45.000` | 4200 | 900 |
+| `P15_ProxyWorkshopFaultLight` | `6730.000,650.000,675.000` | 3600 | 650 |
+
+Result:
+
+- `BP_WorkshopLightFaultController.ControlledLights` now has 2 configured light refs.
+- The previous static warning for empty `ControlledLights` is resolved.
+- Current remaining static warning is expected during testing: `BP_WorkbenchPanel_PuzzleActor` is outside the original rough second-floor bounds because it was temporarily moved near the spawn point for faster testing.
+- Placement report: `Saved/Migration/p15_proxy_fault_lights_report.csv`.

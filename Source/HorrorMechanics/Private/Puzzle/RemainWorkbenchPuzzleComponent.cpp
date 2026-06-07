@@ -404,6 +404,15 @@ bool URemainWorkbenchPuzzleComponent::PlaceItem(UObject* Item, UObject* Inventor
 
 	if (bWasFirstPlacement)
 	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[P15Fault] Workbench first panel placed | Owner=%s | SlotIndex=%d | SlotId=%s | Item=%s"),
+			*GetNameSafe(GetOwner()),
+			SlotIndex,
+			*SlotConfig.SlotId.ToString(),
+			*GetNameSafe(Item));
+
 		bFaultLightsTriggered = true;
 		OnFirstPanelPlaced.Broadcast();
 	}

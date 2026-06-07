@@ -7,6 +7,7 @@ import unreal
 MAPS_TO_SCAN = [
     "/Game/HorrorMechanics/Demo/Maps/DemoScene_01",
     "/Game/HorrorMechanics/Demo/Maps/FinalHouse",
+    "/Game/Anemoia/MAIN/Maps/Demonstration",
 ]
 
 INCLUDE_PATTERNS = [
@@ -22,9 +23,11 @@ INCLUDE_PATTERNS = [
     "BP_VirtualKey",
     "BP_PuzzleActor",
     "BP_Workbench",
+    "BP_WorkshopLightFaultController",
     "BP_Keypad",
     "BP_CombinationLock",
     "BP_CirclePanel",
+    "BP_SubObjective",
     "BP_Examinable",
     "BP_AbstractExaminable",
     "BP_Checkpoint",

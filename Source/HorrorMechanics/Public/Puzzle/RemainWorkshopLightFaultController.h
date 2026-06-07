@@ -38,6 +38,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Lighting", meta=(ClampMin="0.1"))
 	float FlashDuration = 1.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Lighting", meta=(ClampMin="0.0"))
+	float FaultPulseDuration = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Lighting", meta=(ClampMin="1.0"))
+	float FaultPulseIntensityMultiplier = 6.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Lighting", meta=(ClampMin="0.0"))
+	float MinimumFaultPulseIntensity = 25000.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Lighting")
 	TObjectPtr<USoundBase> ElectricBuzzSound = nullptr;
 
@@ -56,8 +65,12 @@ protected:
 
 private:
 	UFUNCTION()
+	void FinishFaultPulse();
+
+	UFUNCTION()
 	void FinishFaultFlash();
 
+	void ApplyFaultPulseState();
 	void SetLightsEnabled(bool bEnabled);
 	void SnapshotLightDefaults();
 	ULightComponent* ResolveLightComponent(const FRemainFaultLightConfig& Config) const;
@@ -68,5 +81,6 @@ private:
 	UPROPERTY(Transient)
 	TArray<bool> DefaultVisibility;
 
+	FTimerHandle FaultPulseTimerHandle;
 	FTimerHandle FaultFlashTimerHandle;
 };
