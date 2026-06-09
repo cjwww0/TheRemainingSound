@@ -32,16 +32,31 @@ public:
 	FName ToggleActionName = TEXT("FlashlightToggle");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="0.0"))
-	float Intensity = 4200.0f;
+	float Intensity = 50000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="1.0"))
-	float AttenuationRadius = 1800.0f;
+	float AttenuationRadius = 3600.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="0.0", ClampMax="89.0"))
-	float InnerConeAngle = 10.0f;
+	float InnerConeAngle = 8.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="0.1", ClampMax="89.0"))
-	float OuterConeAngle = 32.0f;
+	float OuterConeAngle = 30.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="0.0"))
+	float VolumetricScatteringIntensity = 8.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="0.0"))
+	float SourceRadius = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="0.0"))
+	float SoftSourceRadius = 24.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight")
+	bool bUseTemperature = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight", meta=(ClampMin="1000.0", ClampMax="12000.0"))
+	float Temperature = 4300.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Flashlight")
 	FLinearColor LightColor = FLinearColor(1.0f, 0.88f, 0.68f);
@@ -69,6 +84,11 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 private:
 	FTimerHandle AttachRetryTimerHandle;

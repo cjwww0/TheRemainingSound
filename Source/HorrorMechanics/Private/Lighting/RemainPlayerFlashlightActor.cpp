@@ -33,6 +33,22 @@ void ARemainPlayerFlashlightActor::BeginPlay()
 	SetFlashlightEnabled(bStartEnabled);
 }
 
+void ARemainPlayerFlashlightActor::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	ConfigureFlashlight();
+	SetFlashlightEnabled(bStartEnabled);
+}
+
+#if WITH_EDITOR
+void ARemainPlayerFlashlightActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	ConfigureFlashlight();
+	SetFlashlightEnabled(bStartEnabled);
+}
+#endif
+
 void ARemainPlayerFlashlightActor::SetFlashlightEnabled(bool bEnabled)
 {
 	if (Flashlight)
@@ -62,6 +78,11 @@ void ARemainPlayerFlashlightActor::ConfigureFlashlight()
 	Flashlight->SetOuterConeAngle(OuterConeAngle);
 	Flashlight->SetLightColor(LightColor);
 	Flashlight->SetCastShadows(bCastFlashlightShadows);
+	Flashlight->SetVolumetricScatteringIntensity(VolumetricScatteringIntensity);
+	Flashlight->SetSourceRadius(SourceRadius);
+	Flashlight->SetSoftSourceRadius(SoftSourceRadius);
+	Flashlight->SetUseTemperature(bUseTemperature);
+	Flashlight->SetTemperature(Temperature);
 	Flashlight->SetRelativeLocation(CameraRelativeLocation);
 	Flashlight->SetRelativeRotation(CameraRelativeRotation);
 }

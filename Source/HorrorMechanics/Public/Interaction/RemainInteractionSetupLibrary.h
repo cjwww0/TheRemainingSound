@@ -5,6 +5,7 @@
 #include "RemainInteractionSetupLibrary.generated.h"
 
 class AActor;
+class URemainDoorInteractionFallbackComponent;
 class URemainInteractionTraceProxyComponent;
 
 UCLASS()
@@ -19,4 +20,12 @@ public:
 		FVector RelativeLocation,
 		FVector BoxExtent,
 		FRotator RelativeRotation);
+
+	UFUNCTION(BlueprintCallable, Category="Remain|Interaction")
+	static URemainDoorInteractionFallbackComponent* EnsureDoorInteractionFallback(
+		AActor* Actor,
+		FName InteractActionName,
+		float TraceDistance,
+		bool bForceUnlocked,
+		bool bDebug);
 };

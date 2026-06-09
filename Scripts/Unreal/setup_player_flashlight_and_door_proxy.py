@@ -38,6 +38,16 @@ def _set_if_present(obj, name, value):
         return False
 
 
+def _find_component_by_name(actor, component_name):
+    try:
+        for component in actor.get_components_by_class(unreal.ActorComponent):
+            if component and component.get_name() == component_name:
+                return component
+    except Exception:
+        pass
+    return None
+
+
 def _ensure_player_flashlight(rows):
     actor = _find(FLASHLIGHT_LABEL)
     if not actor:
@@ -57,10 +67,15 @@ def _ensure_player_flashlight(rows):
     _set_if_present(actor, "b_start_enabled", True)
     _set_if_present(actor, "b_bind_toggle_input", True)
     _set_if_present(actor, "toggle_action_name", unreal.Name("FlashlightToggle"))
-    _set_if_present(actor, "intensity", 4200.0)
-    _set_if_present(actor, "attenuation_radius", 1800.0)
-    _set_if_present(actor, "inner_cone_angle", 10.0)
-    _set_if_present(actor, "outer_cone_angle", 32.0)
+    _set_if_present(actor, "intensity", 50000.0)
+    _set_if_present(actor, "attenuation_radius", 3600.0)
+    _set_if_present(actor, "inner_cone_angle", 8.0)
+    _set_if_present(actor, "outer_cone_angle", 30.0)
+    _set_if_present(actor, "volumetric_scattering_intensity", 8.0)
+    _set_if_present(actor, "source_radius", 1.5)
+    _set_if_present(actor, "soft_source_radius", 24.0)
+    _set_if_present(actor, "b_use_temperature", True)
+    _set_if_present(actor, "temperature", 4300.0)
     _set_if_present(actor, "camera_relative_location", unreal.Vector(10.0, 0.0, -4.0))
     _set_if_present(actor, "camera_relative_rotation", unreal.Rotator(0.0, 0.0, 0.0))
     try:
@@ -108,6 +123,51 @@ def _ensure_door_proxy(rows):
         "target": DOOR_LABEL,
         "status": "PASS" if component else "FAIL",
         "message": "Door Visibility trace proxy ensured" if component else "Failed to add proxy component",
+        "location": _vec_text(door.get_actor_location()),
+    })
+
+    door_visual = _find_component_by_name(door, "Door")
+    if door_visual:
+        try:
+            door_visual.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
+            rows.append({
+                "target": f"{DOOR_LABEL}.Door",
+                "status": "PASS",
+                "message": "Door visual collision set to QueryAndPhysics",
+                "location": _vec_text(door_visual.get_world_location()),
+            })
+        except Exception as exc:
+            rows.append({
+                "target": f"{DOOR_LABEL}.Door",
+                "status": "FAIL",
+                "message": f"Failed to set collision: {exc}",
+                "location": _vec_text(door.get_actor_location()),
+            })
+    else:
+        rows.append({
+            "target": f"{DOOR_LABEL}.Door",
+            "status": "FAIL",
+            "message": "Door visual component not found",
+            "location": _vec_text(door.get_actor_location()),
+        })
+
+    fallback = setup_library.ensure_door_interaction_fallback(
+        door,
+        unreal.Name("Interact"),
+        450.0,
+        True,
+        True,
+    )
+    if fallback:
+        _set_if_present(fallback, "b_drive_door_visual", True)
+        _set_if_present(fallback, "door_visual_component_name", unreal.Name("Door"))
+        _set_if_present(fallback, "open_relative_rotation_offset", unreal.Rotator(0.0, 90.0, 0.0))
+        _set_if_present(fallback, "b_disable_door_visual_collision_when_open", True)
+
+    rows.append({
+        "target": f"{DOOR_LABEL}.DoorFallback",
+        "status": "PASS" if fallback else "FAIL",
+        "message": "Door interaction fallback ensured" if fallback else "Failed to add door fallback component",
         "location": _vec_text(door.get_actor_location()),
     })
 
