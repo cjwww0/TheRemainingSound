@@ -4,6 +4,9 @@
 #include "Components/ActorComponent.h"
 #include "RemainBreakableSwapComponent.generated.h"
 
+class UStaticMesh;
+class AStaticMeshActor;
+
 UCLASS(ClassGroup=(Remain), BlueprintType, Blueprintable, meta=(BlueprintSpawnableComponent))
 class HORRORMECHANICS_API URemainBreakableSwapComponent : public UActorComponent
 {
@@ -26,6 +29,39 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable")
 	bool bDisableIntactActorsOnBreak = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Intact")
+	bool bSpawnRuntimeIntactOnBeginPlay = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Intact", meta=(EditCondition="bSpawnRuntimeIntactOnBeginPlay"))
+	TObjectPtr<UStaticMesh> RuntimeIntactMesh = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Intact", meta=(EditCondition="bSpawnRuntimeIntactOnBeginPlay"))
+	FVector RuntimeIntactRelativeLocation = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Intact", meta=(EditCondition="bSpawnRuntimeIntactOnBeginPlay"))
+	FRotator RuntimeIntactRelativeRotation = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Intact", meta=(EditCondition="bSpawnRuntimeIntactOnBeginPlay"))
+	FVector RuntimeIntactScale = FVector(0.5f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Intact", meta=(EditCondition="bSpawnRuntimeIntactOnBeginPlay"))
+	bool bHideConfiguredIntactActorsWhenRuntimeIntact = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Fragments")
+	bool bSpawnRuntimeFragmentsOnBreak = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Fragments", meta=(EditCondition="bSpawnRuntimeFragmentsOnBreak"))
+	TObjectPtr<UStaticMesh> RuntimeFragmentMesh = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Fragments", meta=(EditCondition="bSpawnRuntimeFragmentsOnBreak", ClampMin="1", ClampMax="24"))
+	int32 RuntimeFragmentCount = 6;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Fragments", meta=(EditCondition="bSpawnRuntimeFragmentsOnBreak", ClampMin="0.0"))
+	float RuntimeFragmentSpreadRadius = 18.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Runtime Fragments", meta=(EditCondition="bSpawnRuntimeFragmentsOnBreak"))
+	FVector RuntimeFragmentScale = FVector(0.35f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Breakable|Physics")
 	bool bEnablePhysicsOnBrokenActors = true;
@@ -157,9 +193,11 @@ private:
 	};
 
 	void SetActorBreakableEnabled(AActor* Actor, bool bEnabled) const;
+	void SpawnRuntimeIntactActor();
 	bool PrepareChaosActorForScriptedLaunch(AActor* Actor) const;
 	void StartScriptedChaosLaunch(AActor* Actor);
 	void FinishScriptedChaosLaunch(AActor* Actor);
+	bool SpawnRuntimeFragments(const FVector& ImpulseOrigin) const;
 	void ActivateBrokenActor(AActor* Actor, const FVector& ImpulseOrigin) const;
 	bool ActivateChaosGeometryCollections(AActor* Actor, const FVector& ImpulseOrigin) const;
 	bool LaunchChaosGeometryCollections(AActor* Actor, const FVector& ImpulseOrigin) const;
@@ -173,6 +211,9 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> PendingChaosBreakActors;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AStaticMeshActor> RuntimeIntactActor = nullptr;
 
 	TArray<FPendingScriptedChaosLaunch> PendingScriptedChaosLaunches;
 

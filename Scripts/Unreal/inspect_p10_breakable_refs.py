@@ -99,6 +99,66 @@ def _actor_row(category, index, actor, note=""):
     }
 
 
+def _value_row(category, index, value, note=""):
+    return {
+        "category": category,
+        "index": index,
+        "label": str(value),
+        "class_path": _class_path(value) if value else "",
+        "location": "",
+        "hidden": "",
+        "collision": "",
+        "folder": "",
+        "note": note,
+    }
+
+
+def _component_row(category, index, component, note=""):
+    if not component:
+        return _actor_row(category, index, None, note or "NULL")
+    try:
+        mesh = component.get_editor_property("static_mesh")
+    except Exception:
+        mesh = None
+    try:
+        visible = component.is_visible()
+    except Exception:
+        visible = ""
+    try:
+        hidden_game = component.bHiddenInGame
+    except Exception:
+        hidden_game = ""
+    try:
+        simulate = component.is_simulating_physics()
+    except Exception:
+        simulate = ""
+    try:
+        location = component.get_world_location()
+    except Exception:
+        try:
+            location = component.get_owner().get_actor_location()
+        except Exception:
+            location = unreal.Vector()
+    try:
+        scale = component.get_world_scale()
+    except Exception:
+        try:
+            scale = component.get_editor_property("relative_scale3d")
+        except Exception:
+            scale = ""
+    return {
+        "category": category,
+        "index": index,
+        "label": component.get_name(),
+        "class_path": _class_path(component),
+        "location": _vec_text(location),
+        "hidden": f"visible={visible};hidden_game={hidden_game};simulate={simulate}",
+        "collision": str(component.get_collision_enabled()),
+        "folder": "",
+        "note": f"mesh={mesh}; scale={scale}; {note}",
+    }
+
+
 def _append_actor_array(rows, category, actors):
     if actors is None:
         rows.append(_actor_row(category, "", None, "property unreadable"))
@@ -151,7 +211,23 @@ def main():
             "folder": "",
             "note": "found",
         })
-        _append_actor_array(rows, "intact_actors", _get_prop(breakable, "intact_actors", "IntactActors"))
+        rows.append(_value_row("runtime_intact_enabled", 0, _get_prop(breakable, "spawn_runtime_intact_on_begin_play", "b_spawn_runtime_intact_on_begin_play", "bSpawnRuntimeIntactOnBeginPlay")))
+        rows.append(_value_row("runtime_intact_mesh", 0, _get_prop(breakable, "runtime_intact_mesh", "RuntimeIntactMesh")))
+        rows.append(_value_row("runtime_intact_relative_location", 0, _get_prop(breakable, "runtime_intact_relative_location", "RuntimeIntactRelativeLocation")))
+        rows.append(_value_row("runtime_intact_relative_rotation", 0, _get_prop(breakable, "runtime_intact_relative_rotation", "RuntimeIntactRelativeRotation")))
+        rows.append(_value_row("runtime_intact_scale", 0, _get_prop(breakable, "runtime_intact_scale", "RuntimeIntactScale")))
+        rows.append(_value_row("runtime_spawn_enabled", 0, _get_prop(breakable, "spawn_runtime_fragments_on_break", "b_spawn_runtime_fragments_on_break", "bSpawnRuntimeFragmentsOnBreak")))
+        rows.append(_value_row("runtime_fragment_mesh", 0, _get_prop(breakable, "runtime_fragment_mesh", "RuntimeFragmentMesh")))
+        rows.append(_value_row("runtime_fragment_count", 0, _get_prop(breakable, "runtime_fragment_count", "RuntimeFragmentCount")))
+        rows.append(_value_row("runtime_fragment_spread_radius", 0, _get_prop(breakable, "runtime_fragment_spread_radius", "RuntimeFragmentSpreadRadius")))
+        intact_actors = _get_prop(breakable, "intact_actors", "IntactActors")
+        _append_actor_array(rows, "intact_actors", intact_actors)
+        if intact_actors:
+            for index, intact_actor in enumerate(intact_actors):
+                if intact_actor:
+                    components = intact_actor.get_components_by_class(unreal.StaticMeshComponent)
+                    if components:
+                        rows.append(_component_row("intact_static_mesh_component", index, components[0]))
         _append_actor_array(rows, "broken_actors", _get_prop(breakable, "broken_actors", "BrokenActors"))
 
     _write_report(rows)

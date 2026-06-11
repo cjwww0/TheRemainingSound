@@ -2,7 +2,10 @@
 
 #include "Chaos/Particle/ObjectState.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
@@ -57,10 +60,12 @@ void URemainBreakableSwapComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (bPrepareBrokenActorsOnBeginPlay)
-	{
-		PrepareBreakableState();
-	}
+	SpawnRuntimeIntactActor();
+
+	// Always normalize the initial runtime state. Some placed actors can retain
+	// editor visibility/collision state after map edits, so the component owns
+	// the final game-time setup.
+	PrepareBreakableState();
 }
 
 void URemainBreakableSwapComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -108,9 +113,17 @@ void URemainBreakableSwapComponent::PrepareBreakableState()
 	SetComponentTickEnabled(false);
 
 	const bool bSingleChaosMode = bUseChaosGeometryCollections && bUseSingleVisibleChaosActor;
+	const bool bUseRuntimeIntactActor = bSpawnRuntimeIntactOnBeginPlay && IsValid(RuntimeIntactActor);
 	for (AActor* IntactActor : IntactActors)
 	{
-		SetActorBreakableEnabled(IntactActor, !(bSingleChaosMode && bHideIntactActorsInSingleChaosMode));
+		const bool bShouldShowConfiguredIntact = !(bUseRuntimeIntactActor && bHideConfiguredIntactActorsWhenRuntimeIntact)
+			&& !(bSingleChaosMode && bHideIntactActorsInSingleChaosMode);
+		SetActorBreakableEnabled(IntactActor, bShouldShowConfiguredIntact);
+	}
+
+	if (bUseRuntimeIntactActor)
+	{
+		SetActorBreakableEnabled(RuntimeIntactActor, !(bSingleChaosMode && bHideIntactActorsInSingleChaosMode));
 	}
 
 	for (AActor* BrokenActor : BrokenActors)
@@ -186,6 +199,15 @@ bool URemainBreakableSwapComponent::TriggerBreak()
 		{
 			SetActorBreakableEnabled(IntactActor, false);
 		}
+		SetActorBreakableEnabled(RuntimeIntactActor, false);
+	}
+
+	if (bSpawnRuntimeFragmentsOnBreak && IsValid(RuntimeFragmentMesh) && RuntimeFragmentCount > 0)
+	{
+		if (SpawnRuntimeFragments(ImpulseOrigin))
+		{
+			return true;
+		}
 	}
 
 	for (AActor* BrokenActor : BrokenActors)
@@ -225,6 +247,64 @@ void URemainBreakableSwapComponent::SetActorBreakableEnabled(AActor* Actor, bool
 		PrimitiveComponent->SetHiddenInGame(!bEnabled, true);
 		PrimitiveComponent->SetCollisionEnabled(bEnabled ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 	}
+}
+
+void URemainBreakableSwapComponent::SpawnRuntimeIntactActor()
+{
+	if (!bSpawnRuntimeIntactOnBeginPlay || !IsValid(RuntimeIntactMesh) || IsValid(RuntimeIntactActor))
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	AActor* Owner = GetOwner();
+	if (!World || !IsValid(Owner))
+	{
+		return;
+	}
+
+	const FTransform OwnerTransform = Owner->GetActorTransform();
+	const FVector SpawnLocation = OwnerTransform.TransformPosition(RuntimeIntactRelativeLocation);
+	const FRotator SpawnRotation = OwnerTransform.TransformRotation(RuntimeIntactRelativeRotation.Quaternion()).Rotator();
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.Owner = Owner;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AStaticMeshActor* SpawnedActor = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnLocation, SpawnRotation, SpawnParameters);
+	if (!IsValid(SpawnedActor))
+	{
+		return;
+	}
+
+	SpawnedActor->SetActorScale3D(RuntimeIntactScale);
+	SpawnedActor->SetActorHiddenInGame(false);
+	SpawnedActor->SetActorEnableCollision(true);
+	SpawnedActor->SetActorTickEnabled(false);
+
+	UStaticMeshComponent* StaticMeshComponent = SpawnedActor->GetStaticMeshComponent();
+	if (IsValid(StaticMeshComponent))
+	{
+		StaticMeshComponent->SetMobility(EComponentMobility::Movable);
+		StaticMeshComponent->SetStaticMesh(RuntimeIntactMesh);
+		StaticMeshComponent->SetVisibility(true, true);
+		StaticMeshComponent->SetHiddenInGame(false, true);
+		StaticMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		StaticMeshComponent->SetCollisionObjectType(ECC_WorldDynamic);
+		StaticMeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+		StaticMeshComponent->SetSimulatePhysics(false);
+	}
+
+	RuntimeIntactActor = SpawnedActor;
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[RemainBreakable] Runtime intact spawned | Owner=%s | Actor=%s | Mesh=%s | Loc=%s | Scale=%s"),
+		*GetNameSafe(Owner),
+		*GetNameSafe(SpawnedActor),
+		*GetNameSafe(RuntimeIntactMesh),
+		*SpawnLocation.ToCompactString(),
+		*RuntimeIntactScale.ToCompactString());
 }
 
 bool URemainBreakableSwapComponent::PrepareChaosActorForScriptedLaunch(AActor* Actor) const
@@ -328,6 +408,106 @@ void URemainBreakableSwapComponent::FinishScriptedChaosLaunch(AActor* Actor)
 	BreakChaosGeometryCollections(Actor, ImpulseOrigin);
 }
 
+bool URemainBreakableSwapComponent::SpawnRuntimeFragments(const FVector& ImpulseOrigin) const
+{
+	UWorld* World = GetWorld();
+	if (!World || !IsValid(RuntimeFragmentMesh))
+	{
+		return false;
+	}
+
+	const AActor* SourceActor = RuntimeIntactActor;
+	if (!IsValid(SourceActor))
+	{
+		SourceActor = nullptr;
+		for (const AActor* IntactActor : IntactActors)
+		{
+			if (IsValid(IntactActor))
+			{
+				SourceActor = IntactActor;
+				break;
+			}
+		}
+	}
+	if (!SourceActor)
+	{
+		SourceActor = GetOwner();
+	}
+
+	const FVector BaseLocation = SourceActor ? SourceActor->GetActorLocation() : ImpulseOrigin;
+	const FRotator BaseRotation = SourceActor ? SourceActor->GetActorRotation() : FRotator::ZeroRotator;
+	const FVector ForwardImpulse = DirectionalLaunchImpulse.GetSafeNormal();
+	const int32 FragmentCount = FMath::Clamp(RuntimeFragmentCount, 1, 24);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[RemainBreakable] Spawning runtime fragments | Owner=%s | Count=%d | Base=%s | Mesh=%s"),
+		*GetNameSafe(GetOwner()),
+		FragmentCount,
+		*BaseLocation.ToCompactString(),
+		*GetNameSafe(RuntimeFragmentMesh));
+
+	for (int32 Index = 0; Index < FragmentCount; ++Index)
+	{
+		const float Angle = (2.0f * PI * static_cast<float>(Index)) / static_cast<float>(FragmentCount);
+		const FVector LocalOffset(
+			FMath::Cos(Angle) * RuntimeFragmentSpreadRadius,
+			FMath::Sin(Angle) * RuntimeFragmentSpreadRadius,
+			static_cast<float>(Index % 3) * 3.0f);
+		const FVector SpawnLocation = BaseLocation + BaseRotation.RotateVector(LocalOffset);
+		const FRotator SpawnRotation = BaseRotation + FRotator(
+			static_cast<float>((Index * 37) % 65),
+			static_cast<float>((Index * 71) % 360),
+			static_cast<float>((Index * 53) % 90));
+
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.Owner = GetOwner();
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		AStaticMeshActor* FragmentActor = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnLocation, SpawnRotation, SpawnParameters);
+		if (!IsValid(FragmentActor))
+		{
+			continue;
+		}
+
+		FragmentActor->SetActorScale3D(RuntimeFragmentScale);
+		FragmentActor->SetActorHiddenInGame(false);
+		FragmentActor->SetActorEnableCollision(true);
+		FragmentActor->SetActorTickEnabled(true);
+
+		UStaticMeshComponent* StaticMeshComponent = FragmentActor->GetStaticMeshComponent();
+		if (!IsValid(StaticMeshComponent))
+		{
+			continue;
+		}
+
+		StaticMeshComponent->SetMobility(EComponentMobility::Movable);
+		StaticMeshComponent->SetStaticMesh(RuntimeFragmentMesh);
+		StaticMeshComponent->SetVisibility(true, true);
+		StaticMeshComponent->SetHiddenInGame(false, true);
+		StaticMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		StaticMeshComponent->SetCollisionObjectType(ECC_PhysicsBody);
+		StaticMeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+
+		ActivateBrokenActor(FragmentActor, ImpulseOrigin);
+
+		const FVector OutwardDirection = LocalOffset.GetSafeNormal();
+		FVector ScatterDirection = ForwardImpulse + OutwardDirection + FVector(0.0f, 0.0f, 0.35f);
+		if (ScatterDirection.IsNearlyZero())
+		{
+			ScatterDirection = FVector::UpVector;
+		}
+		ScatterDirection.Normalize();
+
+		StaticMeshComponent->AddImpulse(ScatterDirection * DirectionalLaunchImpulseStrength, NAME_None, bImpulseVelChange);
+		StaticMeshComponent->AddTorqueInDegrees(FVector(180.0f + Index * 17.0f, 260.0f + Index * 31.0f, 140.0f + Index * 23.0f), NAME_None, true);
+		StaticMeshComponent->WakeAllRigidBodies();
+	}
+
+	return true;
+}
+
 void URemainBreakableSwapComponent::ActivateBrokenActor(AActor* Actor, const FVector& ImpulseOrigin) const
 {
 	if (!IsValid(Actor))
@@ -366,11 +546,32 @@ void URemainBreakableSwapComponent::ActivateBrokenActor(AActor* Actor, const FVe
 				PrimitiveComponent->SetCollisionResponseToAllChannels(ECR_Block);
 			}
 			PrimitiveComponent->SetSimulatePhysics(true);
+			PrimitiveComponent->SetEnableGravity(true);
+			PrimitiveComponent->WakeAllRigidBodies();
 		}
 
 		if (bApplyRadialImpulse && FMath::Abs(ImpulseStrength) > KINDA_SMALL_NUMBER && ImpulseRadius > KINDA_SMALL_NUMBER)
 		{
 			PrimitiveComponent->AddRadialImpulse(ImpulseOrigin, ImpulseRadius, ImpulseStrength, RIF_Linear, bImpulseVelChange);
+		}
+
+		if (bApplyDirectionalLaunchImpulse && DirectionalLaunchImpulseStrength > KINDA_SMALL_NUMBER)
+		{
+			const FVector LaunchDirection = DirectionalLaunchImpulse.GetSafeNormal();
+			if (!LaunchDirection.IsNearlyZero())
+			{
+				PrimitiveComponent->AddImpulse(LaunchDirection * DirectionalLaunchImpulseStrength, NAME_None, bImpulseVelChange);
+				PrimitiveComponent->AddImpulseAtLocation(
+					LaunchDirection * DirectionalLaunchImpulseStrength,
+					PrimitiveComponent->GetComponentLocation(),
+					NAME_None);
+				PrimitiveComponent->SetPhysicsLinearVelocity(LaunchDirection * DirectionalLaunchImpulseStrength, true);
+			}
+		}
+
+		if (bEnablePhysicsOnBrokenActors)
+		{
+			PrimitiveComponent->WakeAllRigidBodies();
 		}
 	}
 }
