@@ -94,6 +94,11 @@ private:
 	bool IsInteractionCandidate(const AActor* Actor) const;
 	bool IsInteractionDisabledForActor(AActor* Actor, UPrimitiveComponent* HitComponent) const;
 	int32 SetActorHighlighted(AActor* Actor, bool bHighlighted);
+	void CollectHighlightableComponents(
+		AActor* Actor,
+		TSet<AActor*>& VisitedActors,
+		TSet<UPrimitiveComponent*>& VisitedComponents,
+		TArray<UPrimitiveComponent*>& OutComponents) const;
 	void ClearHighlight();
 	void ApplyConfigIfAvailable();
 	void ApplyPostProcessMaterialIfNeeded();

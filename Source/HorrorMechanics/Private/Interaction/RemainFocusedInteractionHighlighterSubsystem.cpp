@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Components/ChildActorComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/ShapeComponent.h"
@@ -281,16 +282,13 @@ int32 URemainFocusedInteractionHighlighterSubsystem::SetActorHighlighted(AActor*
 	}
 
 	int32 HighlightedComponentCount = 0;
-	TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
-	Actor->GetComponents(PrimitiveComponents);
+	TArray<UPrimitiveComponent*> PrimitiveComponents;
+	TSet<AActor*> VisitedActors;
+	TSet<UPrimitiveComponent*> VisitedComponents;
+	CollectHighlightableComponents(Actor, VisitedActors, VisitedComponents, PrimitiveComponents);
 
 	for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
 	{
-		if (!ShouldHighlightComponent(PrimitiveComponent))
-		{
-			continue;
-		}
-
 		if (bHighlighted)
 		{
 			FRemainHighlightedPrimitiveState State;
@@ -313,6 +311,60 @@ int32 URemainFocusedInteractionHighlighterSubsystem::SetActorHighlighted(AActor*
 	}
 
 	return HighlightedComponentCount;
+}
+
+void URemainFocusedInteractionHighlighterSubsystem::CollectHighlightableComponents(
+	AActor* Actor,
+	TSet<AActor*>& VisitedActors,
+	TSet<UPrimitiveComponent*>& VisitedComponents,
+	TArray<UPrimitiveComponent*>& OutComponents) const
+{
+	if (!IsValid(Actor) || VisitedActors.Contains(Actor) || ShouldSkipActor(Actor))
+	{
+		return;
+	}
+
+	VisitedActors.Add(Actor);
+
+	TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
+	Actor->GetComponents(PrimitiveComponents);
+	for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+	{
+		if (!ShouldHighlightComponent(PrimitiveComponent) || VisitedComponents.Contains(PrimitiveComponent))
+		{
+			continue;
+		}
+
+		VisitedComponents.Add(PrimitiveComponent);
+		OutComponents.Add(PrimitiveComponent);
+	}
+
+	TInlineComponentArray<UChildActorComponent*> ChildActorComponents;
+	Actor->GetComponents(ChildActorComponents);
+	for (UChildActorComponent* ChildActorComponent : ChildActorComponents)
+	{
+		if (!IsValid(ChildActorComponent))
+		{
+			continue;
+		}
+
+		CollectHighlightableComponents(
+			ChildActorComponent->GetChildActor(),
+			VisitedActors,
+			VisitedComponents,
+			OutComponents);
+	}
+
+	TArray<AActor*> AttachedActors;
+	Actor->GetAttachedActors(AttachedActors);
+	for (AActor* AttachedActor : AttachedActors)
+	{
+		CollectHighlightableComponents(
+			AttachedActor,
+			VisitedActors,
+			VisitedComponents,
+			OutComponents);
+	}
 }
 
 void URemainFocusedInteractionHighlighterSubsystem::ClearHighlight()
