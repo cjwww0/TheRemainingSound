@@ -57,7 +57,7 @@ void URemainScreenEffectsBridgeComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (bRunOpeningBlurOnBeginPlay)
+	if (bRunOpeningBlurOnBeginPlay && !bWaitForOpeningSequence)
 	{
 		if (OpeningBlurDelay <= 0.0f)
 		{
@@ -140,4 +140,59 @@ void URemainScreenEffectsBridgeComponent::StartOpeningBlur()
 	OpeningBlurElapsed = 0.0f;
 	bOpeningBlurActive = true;
 	SetComponentTickEnabled(true);
+}
+
+void URemainScreenEffectsBridgeComponent::StartOpeningBlinkAndBlur()
+{
+	if (!bUseOpeningBlink)
+	{
+		StartOpeningBlur();
+		return;
+	}
+
+	APlayerController* PlayerController = ResolvePlayerControllerFromOwner(GetOwner());
+	if (PlayerController && PlayerController->PlayerCameraManager)
+	{
+		PlayerController->PlayerCameraManager->StartCameraFade(
+			1.0f,
+			1.0f,
+			0.0f,
+			FLinearColor::Black,
+			false,
+			true);
+	}
+
+	if (OpeningEyeClosedDuration <= KINDA_SMALL_NUMBER)
+	{
+		BeginOpeningEyeOpenAndBlur();
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(OpeningBlinkTimerHandle);
+		World->GetTimerManager().SetTimer(
+			OpeningBlinkTimerHandle,
+			this,
+			&URemainScreenEffectsBridgeComponent::BeginOpeningEyeOpenAndBlur,
+			OpeningEyeClosedDuration,
+			false);
+	}
+}
+
+void URemainScreenEffectsBridgeComponent::BeginOpeningEyeOpenAndBlur()
+{
+	StartOpeningBlur();
+
+	APlayerController* PlayerController = ResolvePlayerControllerFromOwner(GetOwner());
+	if (PlayerController && PlayerController->PlayerCameraManager)
+	{
+		PlayerController->PlayerCameraManager->StartCameraFade(
+			1.0f,
+			0.0f,
+			OpeningEyeOpenDuration,
+			FLinearColor::Black,
+			false,
+			false);
+	}
 }

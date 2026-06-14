@@ -12,6 +12,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 ARemainNurseEncounterActor::ARemainNurseEncounterActor()
 {
@@ -24,8 +25,12 @@ ARemainNurseEncounterActor::ARemainNurseEncounterActor()
 	NurseMesh->SetupAttachment(SceneRoot);
 	NurseMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	NurseStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("NurseStaticMesh"));
+	NurseStaticMesh->SetupAttachment(SceneRoot);
+	NurseStaticMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	FaceFogMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FaceFogMesh"));
-	FaceFogMesh->SetupAttachment(NurseMesh);
+	FaceFogMesh->SetupAttachment(SceneRoot);
 	FaceFogMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	ProximitySphere = CreateDefaultSubobject<USphereComponent>(TEXT("ProximitySphere"));
@@ -36,6 +41,12 @@ ARemainNurseEncounterActor::ARemainNurseEncounterActor()
 	ProximitySphere->SetCollisionResponseToAllChannels(ECR_Ignore);
 	ProximitySphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	ProximitySphere->SetGenerateOverlapEvents(true);
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> NurseStaticMeshFinder(TEXT("/Game/NurseNPC/SM_Nurse.SM_Nurse"));
+	if (NurseStaticMeshFinder.Succeeded())
+	{
+		NurseStaticMesh->SetStaticMesh(NurseStaticMeshFinder.Object);
+	}
 }
 
 void ARemainNurseEncounterActor::BeginPlay()
@@ -142,8 +153,16 @@ void ARemainNurseEncounterActor::SetEncounterVisible(const bool bVisible)
 
 	if (NurseMesh)
 	{
-		NurseMesh->SetVisibility(bVisible, true);
-		NurseMesh->SetHiddenInGame(!bVisible, true);
+		const bool bUseSkeletalMesh = !bPreferStaticNurseMesh || !NurseStaticMesh || !NurseStaticMesh->GetStaticMesh();
+		NurseMesh->SetVisibility(bVisible && bUseSkeletalMesh, true);
+		NurseMesh->SetHiddenInGame(!bVisible || !bUseSkeletalMesh, true);
+	}
+
+	if (NurseStaticMesh)
+	{
+		const bool bUseStaticMesh = bPreferStaticNurseMesh && NurseStaticMesh->GetStaticMesh();
+		NurseStaticMesh->SetVisibility(bVisible && bUseStaticMesh, true);
+		NurseStaticMesh->SetHiddenInGame(!bVisible || !bUseStaticMesh, true);
 	}
 
 	if (FaceFogMesh)

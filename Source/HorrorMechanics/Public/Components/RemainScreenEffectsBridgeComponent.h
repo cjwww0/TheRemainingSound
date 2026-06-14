@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "TimerManager.h"
 #include "RemainScreenEffectsBridgeComponent.generated.h"
 
 UCLASS(ClassGroup=(Remain), BlueprintType, Blueprintable, meta=(BlueprintSpawnableComponent))
@@ -19,6 +20,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Opening Blur")
 	bool bRunOpeningBlurOnBeginPlay = true;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Opening Blur")
+	bool bWaitForOpeningSequence = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Opening Blur", meta=(ClampMin="0.0"))
 	float OpeningBlurDelay = 0.1f;
 
@@ -34,8 +38,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Opening Blur", meta=(ClampMin="0.0"))
 	float OpeningBlurFstop = 1.2f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Opening Blink")
+	bool bUseOpeningBlink = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Opening Blink", meta=(ClampMin="0.0"))
+	float OpeningEyeClosedDuration = 0.45f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Opening Blink", meta=(ClampMin="0.0"))
+	float OpeningEyeOpenDuration = 1.4f;
+
 	UFUNCTION(BlueprintCallable, Category="Remain|Opening Blur")
 	void StartOpeningBlur();
+
+	UFUNCTION(BlueprintCallable, Category="Remain|Opening Blur")
+	void StartOpeningBlinkAndBlur();
 
 protected:
 	UPROPERTY(Transient)
@@ -55,4 +71,8 @@ protected:
 
 	UPROPERTY(Transient)
 	float OriginalPostProcessBlendWeight = 0.0f;
+
+	FTimerHandle OpeningBlinkTimerHandle;
+
+	void BeginOpeningEyeOpenAndBlur();
 };

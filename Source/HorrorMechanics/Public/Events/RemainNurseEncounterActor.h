@@ -30,6 +30,9 @@ public:
 	TObjectPtr<USkeletalMeshComponent> NurseMesh = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Remain|P11", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> NurseStaticMesh = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Remain|P11", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UStaticMeshComponent> FaceFogMesh = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Remain|P11", meta=(AllowPrivateAccess="true"))
@@ -37,6 +40,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|P11")
 	bool bAutoHideOnBeginPlay = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|P11")
+	bool bPreferStaticNurseMesh = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|P11", meta=(ClampMin="0.0"))
 	float ActiveDuration = 10.0f;

@@ -692,6 +692,11 @@ void URemainWorkbenchPuzzleComponent::RefreshSlotVisuals()
 				SlotMeshComponent->SetStaticMesh(SlotConfig.PlacedMesh);
 				SlotMeshComponent->SetVisibility(true, true);
 			}
+			else if (SlotConfig.EmptyGrooveMesh)
+			{
+				SlotMeshComponent->SetStaticMesh(SlotConfig.EmptyGrooveMesh);
+				SlotMeshComponent->SetVisibility(true, true);
+			}
 		}
 
 		SetWarmLightActive(Index, false);

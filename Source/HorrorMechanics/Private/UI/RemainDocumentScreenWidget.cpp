@@ -1,5 +1,6 @@
 #include "UI/RemainDocumentScreenWidget.h"
 
+#include "Blueprint/WidgetTree.h"
 #include "Components/BackgroundBlur.h"
 #include "Components/TextBlock.h"
 #include "Components/Widget.h"
@@ -9,9 +10,18 @@ URemainDocumentScreenWidget::URemainDocumentScreenWidget(const FObjectInitialize
 {
 }
 
+void URemainDocumentScreenWidget::NativeOnInitialized()
+{
+	EnsurePageIndicatorTextFallback();
+	Super::NativeOnInitialized();
+	EnsurePageIndicatorTextFallback();
+}
+
 void URemainDocumentScreenWidget::NativeConstruct()
 {
+	EnsurePageIndicatorTextFallback();
 	Super::NativeConstruct();
+	EnsurePageIndicatorTextFallback();
 
 	BaseRenderTransform = GetRenderTransform();
 	if (TranscriptionText)
@@ -95,7 +105,10 @@ void URemainDocumentScreenWidget::UpdatePage(int32 CurrentPageIndex, int32 Total
 	UpdatePageIndicatorText(CachedCurrentPageIndex, CachedTotalPages);
 
 	const int32 DisplayPageNumber = CachedTotalPages > 0 ? FMath::Clamp(CachedCurrentPageIndex + 1, 1, CachedTotalPages) : 0;
-	OnPageStateUpdated(CachedCurrentPageIndex, DisplayPageNumber, CachedTotalPages);
+	if (PageIndicatorText)
+	{
+		OnPageStateUpdated(CachedCurrentPageIndex, DisplayPageNumber, CachedTotalPages);
+	}
 }
 
 int32 URemainDocumentScreenWidget::GetCurrentPageIndex() const
@@ -128,6 +141,31 @@ void URemainDocumentScreenWidget::StopDocumentDizzy()
 {
 	bDocumentDizzyActive = false;
 	DizzyVisualTarget = 0.0f;
+}
+
+void URemainDocumentScreenWidget::EnsurePageIndicatorTextFallback()
+{
+	if (PageIndicatorText)
+	{
+		return;
+	}
+
+	const FName FallbackName = WidgetTree
+		? MakeUniqueObjectName(WidgetTree, UTextBlock::StaticClass(), TEXT("RemainPageIndicatorTextFallback"))
+		: MakeUniqueObjectName(this, UTextBlock::StaticClass(), TEXT("RemainPageIndicatorTextFallback"));
+
+	UTextBlock* FallbackText = WidgetTree
+		? WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FallbackName)
+		: NewObject<UTextBlock>(this, FallbackName);
+
+	if (!FallbackText)
+	{
+		return;
+	}
+
+	FallbackText->SetText(FText::GetEmpty());
+	FallbackText->SetVisibility(ESlateVisibility::Collapsed);
+	PageIndicatorText = FallbackText;
 }
 
 void URemainDocumentScreenWidget::UpdateArrowVisibility(int32 CurrentPageIndex, int32 TotalPages)

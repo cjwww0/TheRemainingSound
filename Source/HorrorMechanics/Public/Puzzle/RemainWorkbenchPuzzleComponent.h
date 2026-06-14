@@ -29,6 +29,9 @@ struct FRemainWorkbenchSlotConfig
 	FComponentReference SlotMeshComponent;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench")
+	TObjectPtr<UStaticMesh> EmptyGrooveMesh = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench")
 	TObjectPtr<UStaticMesh> PlacedMesh = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench")

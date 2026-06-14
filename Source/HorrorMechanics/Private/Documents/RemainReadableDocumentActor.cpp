@@ -1297,7 +1297,6 @@ void ARemainReadableDocumentActor::HideDocumentScreenChrome(UObject* DocumentScr
 {
 	SetWidgetVisibilityProperty(DocumentScreen, TEXT("ActionList"), ESlateVisibility::Collapsed);
 	SetWidgetVisibilityProperty(DocumentScreen, TEXT("ActionListRef"), ESlateVisibility::Collapsed);
-	SetWidgetVisibilityProperty(DocumentScreen, TEXT("PageIndicatorText"), ESlateVisibility::Collapsed);
 	SetWidgetVisibilityProperty(DocumentScreen, TEXT("PreviousPageArrow"), ESlateVisibility::Collapsed);
 	SetWidgetVisibilityProperty(DocumentScreen, TEXT("NextPageArrow"), ESlateVisibility::Collapsed);
 	SetWidgetVisibilityProperty(DocumentScreen, TEXT("TranscriptionText"), ESlateVisibility::Collapsed);

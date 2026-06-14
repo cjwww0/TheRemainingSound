@@ -32,6 +32,7 @@ public:
 	void StopDocumentDizzy();
 
 protected:
+	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
@@ -91,6 +92,7 @@ protected:
 	float DizzyBlurInterpSpeed = 2.0f;
 
 private:
+	void EnsurePageIndicatorTextFallback();
 	void UpdateArrowVisibility(int32 CurrentPageIndex, int32 TotalPages);
 	void UpdatePageIndicatorText(int32 CurrentPageIndex, int32 TotalPages);
 	void RestoreDizzyVisuals();
