@@ -5,7 +5,7 @@
 
 namespace
 {
-	static TArray<UObject*> GetInventoryItems(UObject* Inventory)
+	static TArray<UObject*> GetPuzzleInventoryItems(UObject* Inventory)
 	{
 		TArray<UObject*> Result;
 		if (!IsValid(Inventory))
@@ -73,7 +73,7 @@ TArray<UObject*> URemainPuzzleInventoryLibrary::GetUsableInventoryItemsForPuzzle
 		return {};
 	}
 
-	const TArray<UObject*> InventoryItems = GetInventoryItems(Inventory);
+	const TArray<UObject*> InventoryItems = GetPuzzleInventoryItems(Inventory);
 	TArray<UObject*> UsableItems;
 	for (UObject* Item : InventoryItems)
 	{

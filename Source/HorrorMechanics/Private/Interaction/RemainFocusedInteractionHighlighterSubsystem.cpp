@@ -6,6 +6,7 @@
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/ShapeComponent.h"
+#include "Documents/RemainReadableDocumentActor.h"
 #include "Engine/Engine.h"
 #include "Engine/HitResult.h"
 #include "Engine/PostProcessVolume.h"
@@ -222,6 +223,11 @@ bool URemainFocusedInteractionHighlighterSubsystem::IsInteractionCandidate(const
 		return true;
 	}
 
+	if (Actor->IsA<ARemainReadableDocumentActor>())
+	{
+		return true;
+	}
+
 	static TWeakObjectPtr<UClass> CachedInteractiveInterfaceClass;
 	UClass* InterfaceClass = CachedInteractiveInterfaceClass.Get();
 	if (!InterfaceClass)
@@ -299,6 +305,10 @@ int32 URemainFocusedInteractionHighlighterSubsystem::SetActorHighlighted(AActor*
 			if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(PrimitiveComponent))
 			{
 				State.OverlayMaterial = MeshComponent->GetOverlayMaterial();
+				if (UMaterialInterface* OverlayMaterial = ResolveOverlayMaterial())
+				{
+					MeshComponent->SetOverlayMaterial(OverlayMaterial);
+				}
 			}
 
 			HighlightedPrimitiveStates.Add(State);
@@ -420,7 +430,7 @@ void URemainFocusedInteractionHighlighterSubsystem::ApplyConfigIfAvailable()
 	bEnableFocusedHighlight = CachedConfigActor->bEnableFocusedHighlight;
 	const int32 ConfigStencilValue = CachedConfigActor->HighlightStencilValue;
 	HighlightStencilValue = ConfigStencilValue >= 1 && ConfigStencilValue <= 6 ? ConfigStencilValue : 1;
-	HighlightOverlayMaterial = nullptr;
+	HighlightOverlayMaterial = CachedConfigActor->HighlightOverlayMaterial;
 	PostProcessMaterial = CachedConfigActor->PostProcessMaterial;
 	if (IsValid(PostProcessMaterial) && !GetPathNameSafe(PostProcessMaterial).Contains(TEXT("SoftOutline")))
 	{

@@ -28,7 +28,9 @@ namespace
 	const TCHAR* DocumentTypeEnumPath = TEXT("/Game/HorrorMechanics/Blueprint/Documents/Data/DocumentType_Enum.DocumentType_Enum");
 	const TCHAR* ActiveScreenEnumPath = TEXT("/Game/HorrorMechanics/Blueprint/UI/Screens/ActiveScreen_Enum.ActiveScreen_Enum");
 	const TCHAR* BookPageWidgetClassPath = TEXT("/Game/HorrorMechanics/Blueprint/Documents/UI/UI_BookPage.UI_BookPage_C");
+	const TCHAR* GenericDocumentPageWidgetClassPath = TEXT("/Game/HorrorMechanics/Blueprint/Documents/UI/UI_GenericDocumentPage.UI_GenericDocumentPage_C");
 	const TCHAR* BookDocumentClassPath = TEXT("/Game/HorrorMechanics/Blueprint/Documents/Data/BP_BookData.BP_BookData_C");
+	const TCHAR* GenericDocumentClassPath = TEXT("/Game/HorrorMechanics/Blueprint/Documents/Data/BP_GenericDocumentData.BP_GenericDocumentData_C");
 
 	bool NameMatches(const FString& Candidate, const FName DesiredName)
 	{
@@ -214,6 +216,11 @@ bool ARemainReadableDocumentActor::OpenDocument(APlayerController* PlayerControl
 		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Opened book document through direct UI path | Document=%s"),
 			*GetNameSafe(AddedDocument));
 	}
+	else if (IsConfiguredAsGenericDocument() && OpenGenericDocumentDirect(PlayerController, AddedDocument))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Opened generic document through direct UI path | Document=%s"),
+			*GetNameSafe(AddedDocument));
+	}
 	else
 	{
 		if (!ShowDocument(PlayerController, DocumentIndex))
@@ -230,6 +237,14 @@ bool ARemainReadableDocumentActor::OpenDocument(APlayerController* PlayerControl
 					*GetNameSafe(AddedDocument));
 			}
 		}
+		else if (IsConfiguredAsGenericDocument())
+		{
+			if (!TryPatchGenericDocumentScreen(PlayerController, AddedDocument))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Generic document UI patch failed; falling back to existing ShowDocument result | Document=%s"),
+					*GetNameSafe(AddedDocument));
+			}
+		}
 	}
 
 	if (bPlayCollectSound && CollectSound)
@@ -237,7 +252,7 @@ bool ARemainReadableDocumentActor::OpenDocument(APlayerController* PlayerControl
 		UGameplayStatics::PlaySound2D(this, CollectSound);
 	}
 
-	const bool bShouldDestroyAfterOpen = bDestroyAfterOpen && !IsConfiguredAsBookDocument();
+	const bool bShouldDestroyAfterOpen = bDestroyAfterOpen && !IsConfiguredAsBookDocument() && !IsConfiguredAsGenericDocument();
 	bDocumentOpened = bShouldDestroyAfterOpen;
 	DisableDirectInteractInput();
 
@@ -709,6 +724,11 @@ bool ARemainReadableDocumentActor::AddDocumentToInventory(UObject* Inventory, in
 		return AddBookDocumentToInventory(Inventory, OutIndex);
 	}
 
+	if (IsConfiguredAsGenericDocument())
+	{
+		return AddGenericDocumentToInventory(Inventory, OutIndex);
+	}
+
 	UFunction* AddDocumentFunction = Inventory->FindFunction(TEXT("AddDocumentAsDTRef"));
 	UScriptStruct* DocumentRefStruct = LoadObject<UScriptStruct>(nullptr, DocumentRefStructPath);
 	if (!AddDocumentFunction || !DocumentRefStruct)
@@ -787,6 +807,52 @@ bool ARemainReadableDocumentActor::AddDocumentToInventory(UObject* Inventory, in
 	return false;
 }
 
+bool ARemainReadableDocumentActor::AddGenericDocumentToInventory(UObject* Inventory, int32& OutIndex) const
+{
+	OutIndex = INDEX_NONE;
+
+	if (!IsValid(Inventory))
+	{
+		return false;
+	}
+
+	FArrayProperty* DocumentsProperty = FindFProperty<FArrayProperty>(Inventory->GetClass(), TEXT("Documents"));
+	FObjectPropertyBase* DocumentObjectProperty = DocumentsProperty ? CastField<FObjectPropertyBase>(DocumentsProperty->Inner) : nullptr;
+	if (!DocumentsProperty || !DocumentObjectProperty)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Inventory.Documents array was not found for manual generic document injection | Inventory=%s"),
+			*GetNameSafe(Inventory));
+		return false;
+	}
+
+	if (CachedDocumentIndex >= 0)
+	{
+		if (UObject* ExistingDocument = GetInventoryDocumentObject(Inventory, CachedDocumentIndex))
+		{
+			OutIndex = CachedDocumentIndex;
+			return true;
+		}
+	}
+
+	UObject* GenericDocument = CreateGenericDocumentObject(Inventory);
+	if (!IsValid(GenericDocument))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Failed to create BP_GenericDocumentData object for row %s"), *DocumentRowName.ToString());
+		return false;
+	}
+
+	FScriptArrayHelper DocumentsArray(DocumentsProperty, DocumentsProperty->ContainerPtrToValuePtr<void>(Inventory));
+	OutIndex = DocumentsArray.AddValue();
+	DocumentObjectProperty->SetObjectPropertyValue(DocumentsArray.GetRawPtr(OutIndex), GenericDocument);
+
+	UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Manually injected BP_GenericDocumentData into inventory | Index=%d | Class=%s | Row=%s"),
+		OutIndex,
+		*GetNameSafe(GenericDocument->GetClass()),
+		*DocumentRowName.ToString());
+
+	return true;
+}
+
 bool ARemainReadableDocumentActor::AddBookDocumentToInventory(UObject* Inventory, int32& OutIndex) const
 {
 	OutIndex = INDEX_NONE;
@@ -833,6 +899,43 @@ bool ARemainReadableDocumentActor::AddBookDocumentToInventory(UObject* Inventory
 	return true;
 }
 
+UObject* ARemainReadableDocumentActor::CreateGenericDocumentObject(UObject* Outer) const
+{
+	UClass* GenericDocumentClass = LoadClass<UObject>(nullptr, GenericDocumentClassPath);
+	if (!GenericDocumentClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Could not load BP_GenericDocumentData class at %s"), GenericDocumentClassPath);
+		return nullptr;
+	}
+
+	UObject* GenericDocument = NewObject<UObject>(Outer ? Outer : GetTransientPackage(), GenericDocumentClass);
+	if (!IsValid(GenericDocument))
+	{
+		return nullptr;
+	}
+
+	if (FNameProperty* RowNameProperty = FindFProperty<FNameProperty>(GenericDocument->GetClass(), TEXT("DataTableRowName")))
+	{
+		RowNameProperty->SetPropertyValue_InContainer(GenericDocument, DocumentRowName);
+	}
+
+	for (TFieldIterator<FNameProperty> It(GenericDocument->GetClass()); It; ++It)
+	{
+		FNameProperty* NameProperty = *It;
+		if (!NameProperty)
+		{
+			continue;
+		}
+
+		if (NameProperty->GetName().Contains(TEXT("DataTableRowName")) || NameProperty->GetName().Contains(TEXT("RowName")))
+		{
+			NameProperty->SetPropertyValue_InContainer(GenericDocument, DocumentRowName);
+		}
+	}
+
+	return GenericDocument;
+}
+
 UObject* ARemainReadableDocumentActor::CreateBookDocumentObject(UObject* Outer) const
 {
 	UClass* BookDocumentClass = LoadClass<UObject>(nullptr, BookDocumentClassPath);
@@ -868,6 +971,30 @@ UObject* ARemainReadableDocumentActor::CreateBookDocumentObject(UObject* Outer) 
 	}
 
 	return BookDocument;
+}
+
+bool ARemainReadableDocumentActor::OpenGenericDocumentDirect(APlayerController* PlayerController, UObject* DocumentObject) const
+{
+	if (!IsValid(DocumentObject))
+	{
+		return false;
+	}
+
+	if (!ActivateDocumentScreen(PlayerController))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Direct generic document open failed: could not activate Document UI | Document=%s"),
+			*GetNameSafe(DocumentObject));
+		return false;
+	}
+
+	if (!TryPatchGenericDocumentScreen(PlayerController, DocumentObject))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Direct generic document open failed: could not patch UI_GenericDocumentPage | Document=%s"),
+			*GetNameSafe(DocumentObject));
+		return false;
+	}
+
+	return true;
 }
 
 bool ARemainReadableDocumentActor::OpenBookDocumentDirect(APlayerController* PlayerController, UObject* DocumentObject) const
@@ -1099,6 +1226,90 @@ UObject* ARemainReadableDocumentActor::GetInventoryDocumentObject(UObject* Inven
 	return nullptr;
 }
 
+bool ARemainReadableDocumentActor::TryPatchGenericDocumentScreen(APlayerController* PlayerController, UObject* DocumentObject) const
+{
+	if (!IsValid(PlayerController))
+	{
+		return false;
+	}
+
+	AHUD* HUD = PlayerController->GetHUD();
+	if (!IsValid(HUD))
+	{
+		return false;
+	}
+
+	FObjectPropertyBase* DocumentScreenProperty = FindFProperty<FObjectPropertyBase>(HUD->GetClass(), TEXT("DocumentScreen"));
+	UObject* DocumentScreen = DocumentScreenProperty ? DocumentScreenProperty->GetObjectPropertyValue_InContainer(HUD) : nullptr;
+	if (!IsValid(DocumentScreen))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] HUD has no valid DocumentScreen to patch generic document | HUD=%s"), *GetNameSafe(HUD));
+		return false;
+	}
+
+	UUserWidget* GenericDocumentPage = CreateGenericDocumentPageWidget(PlayerController, DocumentScreen, DocumentObject);
+	if (!IsValid(GenericDocumentPage))
+	{
+		return false;
+	}
+
+	FObjectPropertyBase* NamedSlotProperty = FindFProperty<FObjectPropertyBase>(DocumentScreen->GetClass(), TEXT("NamedSlot_0"));
+	UWidget* NamedSlotWidget = NamedSlotProperty ? Cast<UWidget>(NamedSlotProperty->GetObjectPropertyValue_InContainer(DocumentScreen)) : nullptr;
+	if (!IsValid(NamedSlotWidget))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] UI_DocumentScreen.NamedSlot_0 was not found for generic document | Screen=%s"),
+			*GetNameSafe(DocumentScreen));
+		return false;
+	}
+
+	SetDocumentScreenDocument(DocumentScreen, DocumentObject);
+	SetDocumentScreenTypeToGeneric(DocumentScreen);
+	SetObjectProperty(DocumentScreen, TEXT("DocumentPage"), GenericDocumentPage);
+	SetWidgetVisibilityProperty(DocumentScreen, TEXT("Content"), ESlateVisibility::Visible);
+	SetWidgetVisibilityProperty(DocumentScreen, TEXT("Empty"), ESlateVisibility::Collapsed);
+	SetWidgetVisibilityProperty(DocumentScreen, TEXT("TranscriptionText"), ESlateVisibility::Collapsed);
+	SetWidgetVisibilityProperty(DocumentScreen, TEXT("TextCursor"), ESlateVisibility::Collapsed);
+
+	if (FBoolProperty* TranscriptionToggleableProperty = FindFProperty<FBoolProperty>(DocumentScreen->GetClass(), TEXT("TranscriptionToggleable")))
+	{
+		TranscriptionToggleableProperty->SetPropertyValue_InContainer(DocumentScreen, false);
+	}
+
+	bool bInsertedPage = false;
+	if (UPanelWidget* PanelSlot = Cast<UPanelWidget>(NamedSlotWidget))
+	{
+		PanelSlot->ClearChildren();
+		PanelSlot->AddChild(GenericDocumentPage);
+		bInsertedPage = true;
+	}
+	else if (UContentWidget* ContentSlot = Cast<UContentWidget>(NamedSlotWidget))
+	{
+		ContentSlot->SetContent(GenericDocumentPage);
+		bInsertedPage = true;
+	}
+
+	if (!bInsertedPage)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] UI_DocumentScreen.NamedSlot_0 has unsupported widget class for generic document | Screen=%s | Slot=%s | SlotClass=%s"),
+			*GetNameSafe(DocumentScreen),
+			*GetNameSafe(NamedSlotWidget),
+			*GetNameSafe(NamedSlotWidget->GetClass()));
+		return false;
+	}
+
+	if (UFunction* GenericPageUpdateFunction = GenericDocumentPage->FindFunction(TEXT("Update")))
+	{
+		GenericDocumentPage->ProcessEvent(GenericPageUpdateFunction, nullptr);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Patched document screen to UI_GenericDocumentPage | Screen=%s | Page=%s | Document=%s"),
+		*GetNameSafe(DocumentScreen),
+		*GetNameSafe(GenericDocumentPage),
+		*GetNameSafe(DocumentObject));
+
+	return true;
+}
+
 bool ARemainReadableDocumentActor::TryPatchBookDocumentScreen(APlayerController* PlayerController, UObject* DocumentObject) const
 {
 	if (!IsValid(PlayerController))
@@ -1210,6 +1421,30 @@ bool ARemainReadableDocumentActor::IsConfiguredAsBookDocument() const
 		TableName.Contains(TEXT("Book"), ESearchCase::IgnoreCase);
 }
 
+bool ARemainReadableDocumentActor::IsGenericDocumentType() const
+{
+	return DocumentTypeName.ToString().Equals(TEXT("GenericDocument"), ESearchCase::IgnoreCase) ||
+		DocumentTypeName.ToString().Equals(TEXT("Generic Document"), ESearchCase::IgnoreCase);
+}
+
+bool ARemainReadableDocumentActor::IsConfiguredAsGenericDocument() const
+{
+	if (IsConfiguredAsBookDocument())
+	{
+		return false;
+	}
+
+	if (IsGenericDocumentType())
+	{
+		return true;
+	}
+
+	const UDataTable* EffectiveTable = GetEffectiveDocumentDataTable();
+	const FString TableName = GetNameSafe(EffectiveTable);
+	return TableName.Contains(TEXT("GenericDocuments_DataTable"), ESearchCase::IgnoreCase) ||
+		TableName.Contains(TEXT("GenericDocument"), ESearchCase::IgnoreCase);
+}
+
 bool ARemainReadableDocumentActor::LoadDiaryPageTextures(TArray<UTexture2D*>& OutTextures) const
 {
 	OutTextures.Reset();
@@ -1308,6 +1543,33 @@ bool ARemainReadableDocumentActor::SetDocumentScreenDocument(UObject* DocumentSc
 	return SetObjectProperty(DocumentScreen, TEXT("Document"), DocumentObject);
 }
 
+bool ARemainReadableDocumentActor::SetDocumentScreenTypeToGeneric(UObject* DocumentScreen) const
+{
+	if (!IsValid(DocumentScreen))
+	{
+		return false;
+	}
+
+	UEnum* DocumentTypeEnum = LoadObject<UEnum>(nullptr, DocumentTypeEnumPath);
+	const int64 GenericValue = ResolveEnumValue(DocumentTypeEnum, TEXT("GenericDocument"));
+
+	if (FEnumProperty* EnumProperty = FindFProperty<FEnumProperty>(DocumentScreen->GetClass(), TEXT("CurrentDocumentType")))
+	{
+		EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(EnumProperty->ContainerPtrToValuePtr<void>(DocumentScreen), GenericValue);
+		return true;
+	}
+
+	if (FByteProperty* ByteProperty = FindFProperty<FByteProperty>(DocumentScreen->GetClass(), TEXT("CurrentDocumentType")))
+	{
+		ByteProperty->SetIntPropertyValue(
+			ByteProperty->ContainerPtrToValuePtr<void>(DocumentScreen),
+			ByteProperty->Enum ? ResolveEnumValue(ByteProperty->Enum, TEXT("GenericDocument")) : GenericValue);
+		return true;
+	}
+
+	return false;
+}
+
 bool ARemainReadableDocumentActor::SetDocumentScreenTypeToBook(UObject* DocumentScreen) const
 {
 	if (!IsValid(DocumentScreen))
@@ -1368,6 +1630,44 @@ bool ARemainReadableDocumentActor::SetWidgetVisibilityProperty(UObject* Target, 
 
 	Widget->SetVisibility(Visibility);
 	return true;
+}
+
+UUserWidget* ARemainReadableDocumentActor::CreateGenericDocumentPageWidget(APlayerController* PlayerController, UObject* DocumentScreen, UObject* DocumentObject) const
+{
+	if (!IsValid(PlayerController) || !IsValid(DocumentScreen))
+	{
+		return nullptr;
+	}
+
+	UClass* GenericPageClass = LoadClass<UUserWidget>(nullptr, GenericDocumentPageWidgetClassPath);
+	if (!GenericPageClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RemainReadableDocumentActor] Could not load UI_GenericDocumentPage class at %s"), GenericDocumentPageWidgetClassPath);
+		return nullptr;
+	}
+
+	UUserWidget* GenericPage = CreateWidget<UUserWidget>(PlayerController, GenericPageClass);
+	if (!IsValid(GenericPage))
+	{
+		return nullptr;
+	}
+
+	if (IsValid(DocumentObject))
+	{
+		SetObjectProperty(GenericPage, TEXT("Document"), DocumentObject);
+	}
+	SetObjectProperty(GenericPage, TEXT("DocumentScreenRef"), DocumentScreen);
+	SetObjectProperty(GenericPage, TEXT("Document Screen Ref"), DocumentScreen);
+
+	FObjectPropertyBase* ActionListProperty = FindFProperty<FObjectPropertyBase>(DocumentScreen->GetClass(), TEXT("ActionList"));
+	UObject* ActionList = ActionListProperty ? ActionListProperty->GetObjectPropertyValue_InContainer(DocumentScreen) : nullptr;
+	if (IsValid(ActionList))
+	{
+		SetObjectProperty(GenericPage, TEXT("ActionListRef"), ActionList);
+		SetObjectProperty(GenericPage, TEXT("ActionList Ref"), ActionList);
+	}
+
+	return GenericPage;
 }
 
 UUserWidget* ARemainReadableDocumentActor::CreateBookPageWidget(APlayerController* PlayerController, UObject* DocumentScreen, UObject* DocumentObject) const

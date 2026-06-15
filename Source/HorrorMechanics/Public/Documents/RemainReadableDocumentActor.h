@@ -78,7 +78,7 @@ public:
 	bool OpenDocument(APlayerController* PlayerController);
 
 	UFUNCTION(BlueprintPure, Category="Remain|Interaction")
-	bool IsReadableDocumentInteractionDisabled(UPrimitiveComponent* Component) const;
+	UPARAM(DisplayName="Yes") bool IsReadableDocumentInteractionDisabled(UPrimitiveComponent* Component) const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -110,22 +110,30 @@ private:
 	UObject* ResolveInventory() const;
 	bool BuildDocumentRefStruct(void* StructMemory, UScriptStruct* StructType) const;
 	bool AddDocumentToInventory(UObject* Inventory, int32& OutIndex) const;
+	bool AddGenericDocumentToInventory(UObject* Inventory, int32& OutIndex) const;
 	bool AddBookDocumentToInventory(UObject* Inventory, int32& OutIndex) const;
+	UObject* CreateGenericDocumentObject(UObject* Outer) const;
 	UObject* CreateBookDocumentObject(UObject* Outer) const;
+	bool OpenGenericDocumentDirect(APlayerController* PlayerController, UObject* DocumentObject) const;
 	bool OpenBookDocumentDirect(APlayerController* PlayerController, UObject* DocumentObject) const;
 	bool ActivateDocumentScreen(APlayerController* PlayerController) const;
 	bool ShowDocument(APlayerController* PlayerController, int32 Index) const;
 	UObject* GetInventoryDocumentObject(UObject* Inventory, int32 Index) const;
 	FString GetInventoryDocumentClassName(UObject* Inventory, int32 Index) const;
+	bool TryPatchGenericDocumentScreen(APlayerController* PlayerController, UObject* DocumentObject) const;
 	bool TryPatchBookDocumentScreen(APlayerController* PlayerController, UObject* DocumentObject) const;
 	bool IsBookDocumentType() const;
 	bool IsConfiguredAsBookDocument() const;
+	bool IsGenericDocumentType() const;
+	bool IsConfiguredAsGenericDocument() const;
 	bool LoadDiaryPageTextures(TArray<UTexture2D*>& OutTextures) const;
 	void HideDocumentScreenChrome(UObject* DocumentScreen) const;
 	bool SetDocumentScreenDocument(UObject* DocumentScreen, UObject* DocumentObject) const;
+	bool SetDocumentScreenTypeToGeneric(UObject* DocumentScreen) const;
 	bool SetDocumentScreenTypeToBook(UObject* DocumentScreen) const;
 	bool SetObjectProperty(UObject* Target, FName PropertyName, UObject* Value) const;
 	bool SetWidgetVisibilityProperty(UObject* Target, FName PropertyName, ESlateVisibility Visibility) const;
+	UUserWidget* CreateGenericDocumentPageWidget(APlayerController* PlayerController, UObject* DocumentScreen, UObject* DocumentObject) const;
 	UUserWidget* CreateBookPageWidget(APlayerController* PlayerController, UObject* DocumentScreen, UObject* DocumentObject) const;
 	void DebugMessage(const FString& Message) const;
 };

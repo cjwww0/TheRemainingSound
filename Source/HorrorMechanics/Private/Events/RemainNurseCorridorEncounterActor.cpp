@@ -18,7 +18,7 @@
 
 namespace
 {
-	static void AddPartIdFromObject(const UObject* Object, TArray<FName>& OutPartIds)
+	static void AddNurseCorridorPartIdFromObject(const UObject* Object, TArray<FName>& OutPartIds)
 	{
 		if (!IsValid(Object))
 		{
@@ -50,15 +50,15 @@ namespace
 		}
 	}
 
-	static void AddPartIdFromClass(const UClass* Class, TArray<FName>& OutPartIds)
+	static void AddNurseCorridorPartIdFromClass(const UClass* Class, TArray<FName>& OutPartIds)
 	{
 		if (Class)
 		{
-			AddPartIdFromObject(Class->GetDefaultObject(), OutPartIds);
+			AddNurseCorridorPartIdFromObject(Class->GetDefaultObject(), OutPartIds);
 		}
 	}
 
-	static TArray<FName> ResolvePartIds(const UObject* Object)
+	static TArray<FName> ResolveNurseCorridorPartIds(const UObject* Object)
 	{
 		TArray<FName> Result;
 		if (!IsValid(Object))
@@ -66,8 +66,8 @@ namespace
 			return Result;
 		}
 
-		AddPartIdFromObject(Object, Result);
-		AddPartIdFromClass(Object->GetClass(), Result);
+		AddNurseCorridorPartIdFromObject(Object, Result);
+		AddNurseCorridorPartIdFromClass(Object->GetClass(), Result);
 
 		const UClass* ObjectClass = Object->GetClass();
 		static const FName ObjectPropertyCandidates[] =
@@ -81,7 +81,7 @@ namespace
 		{
 			if (const FObjectPropertyBase* ObjectProperty = FindFProperty<FObjectPropertyBase>(ObjectClass, PropertyName))
 			{
-				AddPartIdFromObject(ObjectProperty->GetObjectPropertyValue_InContainer(Object), Result);
+				AddNurseCorridorPartIdFromObject(ObjectProperty->GetObjectPropertyValue_InContainer(Object), Result);
 			}
 		}
 
@@ -95,14 +95,14 @@ namespace
 		{
 			if (const FClassProperty* ClassProperty = FindFProperty<FClassProperty>(ObjectClass, PropertyName))
 			{
-				AddPartIdFromClass(Cast<UClass>(ClassProperty->GetObjectPropertyValue_InContainer(Object)), Result);
+				AddNurseCorridorPartIdFromClass(Cast<UClass>(ClassProperty->GetObjectPropertyValue_InContainer(Object)), Result);
 			}
 		}
 
 		return Result;
 	}
 
-	static TArray<UObject*> GetInventoryItems(UObject* Inventory)
+	static TArray<UObject*> GetNurseCorridorInventoryItems(UObject* Inventory)
 	{
 		TArray<UObject*> Result;
 		if (!IsValid(Inventory))
@@ -471,7 +471,7 @@ bool ARemainNurseCorridorEncounterActor::DoesObjectMatchRequiredPart(const UObje
 		return false;
 	}
 
-	for (const FName PartId : ResolvePartIds(CollectedObject))
+	for (const FName PartId : ResolveNurseCorridorPartIds(CollectedObject))
 	{
 		if (PartId == RequiredPickupPartId)
 		{
@@ -497,11 +497,11 @@ bool ARemainNurseCorridorEncounterActor::RuntimeInventoryHasRequiredPickup() con
 		return false;
 	}
 
-	const TArray<UObject*> Items = GetInventoryItems(Inventory);
+	const TArray<UObject*> Items = GetNurseCorridorInventoryItems(Inventory);
 	TArray<FString> SeenPartIds;
 	for (UObject* Item : Items)
 	{
-		const TArray<FName> PartIds = ResolvePartIds(Item);
+		const TArray<FName> PartIds = ResolveNurseCorridorPartIds(Item);
 		for (const FName PartId : PartIds)
 		{
 			SeenPartIds.AddUnique(PartId.ToString());
