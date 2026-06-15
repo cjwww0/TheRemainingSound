@@ -3,6 +3,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Events/RemainNurseCorridorEncounterActor.h"
 #include "Events/RemainPickupShockController.h"
 
 int32 URemainPickupEventLibrary::NotifyWorkbenchPickupCollected(UObject* WorldContextObject, AActor* PickupActor)
@@ -15,6 +16,14 @@ int32 URemainPickupEventLibrary::NotifyWorkbenchPickupCollected(UObject* WorldCo
 
 	int32 TriggeredCount = 0;
 	for (TActorIterator<ARemainPickupShockController> It(World); It; ++It)
+	{
+		if (It->NotifyWorkbenchPickupCollected(PickupActor))
+		{
+			++TriggeredCount;
+		}
+	}
+
+	for (TActorIterator<ARemainNurseCorridorEncounterActor> It(World); It; ++It)
 	{
 		if (It->NotifyWorkbenchPickupCollected(PickupActor))
 		{
@@ -37,6 +46,14 @@ int32 URemainPickupEventLibrary::NotifyInventoryItemAddedForRemainEvents(UObject
 	for (TActorIterator<ARemainPickupShockController> It(World); It; ++It)
 	{
 		if (It->NotifyInventoryItemAdded(InventoryItem))
+		{
+			++TriggeredCount;
+		}
+	}
+
+	for (TActorIterator<ARemainNurseCorridorEncounterActor> It(World); It; ++It)
+	{
+		if (It->NotifyCollectedObject(InventoryItem))
 		{
 			++TriggeredCount;
 		}
