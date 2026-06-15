@@ -6,15 +6,31 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "Puzzle/RemainWorkbenchPartIdProvider.h"
 #include "Puzzle/RemainWorkbenchPickupLibrary.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 #include "UObject/UnrealType.h"
 
 URemainWorkbenchPuzzleComponent::URemainWorkbenchPuzzleComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DefaultGrooveMeshFinder(
+		TEXT("/Game/HorrorMechanics/Demo/Meshes/SM_Cube.SM_Cube"));
+	if (DefaultGrooveMeshFinder.Succeeded())
+	{
+		DefaultEmptyGrooveMesh = DefaultGrooveMeshFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DefaultGrooveMaterialFinder(
+		TEXT("/Game/HorrorMechanics/ExampleAssets/MaterialInstances/MI_Black.MI_Black"));
+	if (DefaultGrooveMaterialFinder.Succeeded())
+	{
+		DefaultEmptyGrooveMaterial = DefaultGrooveMaterialFinder.Object;
+	}
 }
 
 void URemainWorkbenchPuzzleComponent::BeginPlay()
@@ -372,6 +388,8 @@ bool URemainWorkbenchPuzzleComponent::PlaceItem(UObject* Item, UObject* Inventor
 
 	if (UStaticMeshComponent* SlotMeshComponent = ResolveSlotMeshComponent(GetOwner(), SlotConfig); SlotMeshComponent && SlotConfig.PlacedMesh)
 	{
+		CacheSlotComponentVisualState(SlotMeshComponent);
+		RestoreSlotComponentVisualState(SlotMeshComponent);
 		SlotMeshComponent->SetStaticMesh(SlotConfig.PlacedMesh);
 		SlotMeshComponent->SetVisibility(true, true);
 	}
@@ -687,19 +705,87 @@ void URemainWorkbenchPuzzleComponent::RefreshSlotVisuals()
 		const FRemainWorkbenchSlotConfig& SlotConfig = SlotConfigs[Index];
 		if (UStaticMeshComponent* SlotMeshComponent = ResolveSlotMeshComponent(GetOwner(), SlotConfig))
 		{
+			CacheSlotComponentVisualState(SlotMeshComponent);
+
 			if (PlacedSlots.IsValidIndex(Index) && PlacedSlots[Index] && SlotConfig.PlacedMesh)
 			{
+				RestoreSlotComponentVisualState(SlotMeshComponent);
 				SlotMeshComponent->SetStaticMesh(SlotConfig.PlacedMesh);
 				SlotMeshComponent->SetVisibility(true, true);
 			}
-			else if (SlotConfig.EmptyGrooveMesh)
+			else
 			{
-				SlotMeshComponent->SetStaticMesh(SlotConfig.EmptyGrooveMesh);
-				SlotMeshComponent->SetVisibility(true, true);
+				UStaticMesh* EmptyMesh = SlotConfig.EmptyGrooveMesh;
+				const bool bUsingFallbackGroove = !EmptyMesh && bUseDefaultEmptyGrooveVisuals;
+				if (bUsingFallbackGroove)
+				{
+					EmptyMesh = DefaultEmptyGrooveMesh;
+				}
+
+				if (EmptyMesh)
+				{
+					SlotMeshComponent->SetStaticMesh(EmptyMesh);
+					SlotMeshComponent->SetVisibility(true, true);
+
+					if (bUsingFallbackGroove)
+					{
+						if (DefaultEmptyGrooveMaterial)
+						{
+							SlotMeshComponent->SetMaterial(0, DefaultEmptyGrooveMaterial);
+						}
+
+						if (bApplyFallbackEmptyGrooveScale)
+						{
+							SlotMeshComponent->SetRelativeScale3D(FallbackEmptyGrooveScale);
+						}
+					}
+					else
+					{
+						RestoreSlotComponentVisualState(SlotMeshComponent);
+					}
+				}
 			}
 		}
 
 		SetWarmLightActive(Index, false);
+	}
+}
+
+void URemainWorkbenchPuzzleComponent::CacheSlotComponentVisualState(UStaticMeshComponent* SlotMeshComponent)
+{
+	if (!IsValid(SlotMeshComponent))
+	{
+		return;
+	}
+
+	const TWeakObjectPtr<UStaticMeshComponent> ComponentKey(SlotMeshComponent);
+	if (!CachedSlotComponentScales.Contains(ComponentKey))
+	{
+		CachedSlotComponentScales.Add(ComponentKey, SlotMeshComponent->GetRelativeScale3D());
+	}
+
+	if (!CachedSlotComponentMaterial0.Contains(ComponentKey))
+	{
+		CachedSlotComponentMaterial0.Add(ComponentKey, SlotMeshComponent->GetMaterial(0));
+	}
+}
+
+void URemainWorkbenchPuzzleComponent::RestoreSlotComponentVisualState(UStaticMeshComponent* SlotMeshComponent)
+{
+	if (!IsValid(SlotMeshComponent))
+	{
+		return;
+	}
+
+	const TWeakObjectPtr<UStaticMeshComponent> ComponentKey(SlotMeshComponent);
+	if (const FVector* CachedScale = CachedSlotComponentScales.Find(ComponentKey))
+	{
+		SlotMeshComponent->SetRelativeScale3D(*CachedScale);
+	}
+
+	if (const TWeakObjectPtr<UMaterialInterface>* CachedMaterial = CachedSlotComponentMaterial0.Find(ComponentKey))
+	{
+		SlotMeshComponent->SetMaterial(0, CachedMaterial->Get());
 	}
 }
 

@@ -7,6 +7,7 @@
 
 class ULightComponent;
 class UBoxComponent;
+class UMaterialInterface;
 class UStaticMesh;
 class UStaticMeshComponent;
 class USoundBase;
@@ -77,6 +78,21 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench", meta=(ClampMin="0.05"))
 	float WarmLightDuration = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench|Visual")
+	bool bUseDefaultEmptyGrooveVisuals = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench|Visual", meta=(EditCondition="bUseDefaultEmptyGrooveVisuals"))
+	TObjectPtr<UStaticMesh> DefaultEmptyGrooveMesh = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench|Visual", meta=(EditCondition="bUseDefaultEmptyGrooveVisuals"))
+	TObjectPtr<UMaterialInterface> DefaultEmptyGrooveMaterial = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench|Visual", meta=(EditCondition="bUseDefaultEmptyGrooveVisuals"))
+	bool bApplyFallbackEmptyGrooveScale = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench|Visual", meta=(EditCondition="bUseDefaultEmptyGrooveVisuals"))
+	FVector FallbackEmptyGrooveScale = FVector(0.32f, 0.18f, 0.025f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Remain|Workbench|Interaction")
 	bool bForceVisibilityBlockOnSlotMeshes = true;
@@ -161,6 +177,8 @@ private:
 	void EnsureStateArrays();
 	void ConfigureInteractionCollision();
 	void RefreshSlotVisuals();
+	void CacheSlotComponentVisualState(UStaticMeshComponent* SlotMeshComponent);
+	void RestoreSlotComponentVisualState(UStaticMeshComponent* SlotMeshComponent);
 	void SetWarmLightActive(int32 SlotIndex, bool bActive);
 	void ApplySequentialPickupVisibility();
 	bool RemoveInventoryItem(UObject* Inventory, UObject* Item) const;
@@ -171,6 +189,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UBoxComponent> InteractionTraceProxy = nullptr;
+
+	TMap<TWeakObjectPtr<UStaticMeshComponent>, FVector> CachedSlotComponentScales;
+	TMap<TWeakObjectPtr<UStaticMeshComponent>, TWeakObjectPtr<UMaterialInterface>> CachedSlotComponentMaterial0;
 
 	FTimerHandle WarmLightTimerHandle;
 };
